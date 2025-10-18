@@ -1,17 +1,18 @@
+def SERVICES = [
+    [name: 'user-service', port: '8700', path: 'user-service'],
+    [name: 'product-service', port: '8500', path: 'product-service'],
+    [name: 'order-service', port: '8300', path: 'order-service'],
+    [name: 'payment-service', port: '8400', path: 'payment-service'],
+    [name: 'shipping-service', port: '8600', path: 'shipping-service'],
+    [name: 'favourite-service', port: '8800', path: 'favourite-service']
+]
+
 pipeline {
     agent any
     
     environment {
         DOCKER_REGISTRY = 'localhost:5000'
         K8S_NAMESPACE = 'microservices-dev'
-        SERVICES = [
-            [name: 'user-service', port: '8700', path: 'user-service'],
-            [name: 'product-service', port: '8500', path: 'product-service'],
-            [name: 'order-service', port: '8300', path: 'order-service'],
-            [name: 'payment-service', port: '8400', path: 'payment-service'],
-            [name: 'shipping-service', port: '8600', path: 'shipping-service'],
-            [name: 'favourite-service', port: '8800', path: 'favourite-service']
-        ]
     }
     
     stages {
@@ -26,13 +27,13 @@ pipeline {
                     
                     // Detect changed services
                     def changedServices = []
-                    for (service in env.SERVICES) {
+                    for (service in SERVICES) {
                         def serviceName = service.name
                         def servicePath = service.path
                         
                         // Check if service directory or related files changed
                         def changes = sh(
-                            script: "git diff --name-only HEAD~1 HEAD | grep -E '^${servicePath}/|^pom.xml$|^shared/' || true",
+                            script: """git diff --name-only HEAD~1 HEAD | grep -E '^${servicePath}/|^pom\\.xml\$|^shared/' || true""",
                             returnStdout: true
                         ).trim()
                         
@@ -45,9 +46,9 @@ pipeline {
                     // If no specific changes detected, build all services
                     if (changedServices.isEmpty()) {
                         echo "No specific changes detected, building all services"
-                        changedServices = env.SERVICES.collect { it.name }
+                        changedServices = SERVICES.collect { it.name }
                     }
-                    
+
                     env.CHANGED_SERVICES = changedServices.join(',')
                     echo "Services to build: ${env.CHANGED_SERVICES}"
                 }
@@ -299,7 +300,7 @@ def runIntegrationTests() {
 def healthCheckAllServices() {
     echo "Performing health checks on all services..."
     
-    for (service in env.SERVICES) {
+    for (service in SERVICES) {
         def serviceName = service.name
         def servicePort = service.port
         
