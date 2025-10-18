@@ -242,8 +242,15 @@ def buildService(serviceName, servicePort) {
     // Package application
     sh "mvn package -pl ${serviceName} -am -DskipTests"
     
-    // Publish test results
-    junit "${serviceName}/target/surefire-reports/*.xml"
+    // Publish test results (only if they exist)
+    script {
+        def testResults = "${serviceName}/target/surefire-reports/*.xml"
+        if (fileExists(testResults)) {
+            junit testResults
+        } else {
+            echo "No test results found for ${serviceName}, skipping JUnit report"
+        }
+    }
     
     // Build Docker image
     sh "docker build -f ${serviceName}/Dockerfile -t ${serviceName}:${BUILD_NUMBER} ."
