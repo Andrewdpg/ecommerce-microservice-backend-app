@@ -1,12 +1,16 @@
 
-FROM openjdk:11
+FROM maven:3.8.8-eclipse-temurin-11 AS build
 ARG PROJECT_VERSION=0.1.0
-RUN mkdir -p /home/app
+WORKDIR /workspace
+COPY . .
+RUN mvn -B -DskipTests -pl proxy-client -am clean package
+
+FROM eclipse-temurin:11-jre AS runtime
+ARG PROJECT_VERSION=0.1.0
+ENV SPRING_PROFILES_ACTIVE=dev
 WORKDIR /home/app
-ENV SPRING_PROFILES_ACTIVE dev
-COPY proxy-client/ .
-ADD proxy-client/target/proxy-client-v${PROJECT_VERSION}.jar proxy-client.jar
+COPY --from=build /workspace/proxy-client/target/proxy-client-v${PROJECT_VERSION}.jar app.jar
 EXPOSE 8900
-ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "proxy-client.jar"]
+ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "app.jar"]
 
 

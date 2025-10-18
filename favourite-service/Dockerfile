@@ -1,12 +1,16 @@
 
-FROM openjdk:11
+FROM maven:3.8.8-eclipse-temurin-11 AS build
 ARG PROJECT_VERSION=0.1.0
-RUN mkdir -p /home/app
+WORKDIR /workspace
+COPY . .
+RUN mvn -B -DskipTests -pl favourite-service -am clean package
+
+FROM eclipse-temurin:11-jre AS runtime
+ARG PROJECT_VERSION=0.1.0
+ENV SPRING_PROFILES_ACTIVE=dev
 WORKDIR /home/app
-ENV SPRING_PROFILES_ACTIVE dev
-COPY favourite-service/ .
-ADD favourite-service/target/favourite-service-v${PROJECT_VERSION}.jar favourite-service.jar
+COPY --from=build /workspace/favourite-service/target/favourite-service-v${PROJECT_VERSION}.jar app.jar
 EXPOSE 8800
-ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "favourite-service.jar"]
+ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "app.jar"]
 
 

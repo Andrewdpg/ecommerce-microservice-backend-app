@@ -1,70 +1,366 @@
-
-version: '3'
 services:
   zipkin-container:
     image: openzipkin/zipkin
     ports:
       - 9411:9411
+    networks:
+      - microservices_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9411/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   service-discovery-container:
-    image: selimhorri/service-discovery-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: service-discovery/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 8761:8761
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=service-discovery-container
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   cloud-config-container:
-    image: selimhorri/cloud-config-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: cloud-config/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 9296:9296
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - EUREKA_CLIENT_REGION=default
+      - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
+      - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=cloud-config-container
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+      service-discovery-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9296/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   api-gateway-container:
-    image: selimhorri/api-gateway-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 8080:8080
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
+      - EUREKA_CLIENT_REGION=default
+      - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
+      - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=api-gateway-container
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+      service-discovery-container:
+        condition: service_healthy
+      cloud-config-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
   proxy-client-container:
-    image: selimhorri/proxy-client-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: proxy-client/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 8900:8900
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - EUREKA_CLIENT_REGION=default
+      - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
+      - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=proxy-client-container
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+      service-discovery-container:
+        condition: service_healthy
+      cloud-config-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8900/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
   order-service-container:
-    image: selimhorri/order-service-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: order-service/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 8300:8300
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - EUREKA_CLIENT_REGION=default
+      - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
+      - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=order-service-container
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+      service-discovery-container:
+        condition: service_healthy
+      cloud-config-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8300/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
   payment-service-container:
-    image: selimhorri/payment-service-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 8400:8400
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - EUREKA_CLIENT_REGION=default
+      - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
+      - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=payment-service-container
+
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+      service-discovery-container:
+        condition: service_healthy
+      cloud-config-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8400/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
   product-service-container:
-    image: selimhorri/product-service-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: product-service/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 8500:8500
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - EUREKA_CLIENT_REGION=default
+      - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
+      - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=product-service-container
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+      service-discovery-container:
+        condition: service_healthy
+      cloud-config-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
   shipping-service-container:
-    image: selimhorri/shipping-service-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: shipping-service/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 8600:8600
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - EUREKA_CLIENT_REGION=default
+      - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
+      - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=shipping-service-container
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+      service-discovery-container:
+        condition: service_healthy
+      cloud-config-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8600/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
   user-service-container:
-    image: selimhorri/user-service-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 8700:8700
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - EUREKA_CLIENT_REGION=default
+      - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
+      - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=user-service-container
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+      service-discovery-container:
+        condition: service_healthy
+      cloud-config-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8700/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
   favourite-service-container:
-    image: selimhorri/favourite-service-ecommerce-boot:0.1.0
+    build:
+      context: .
+      dockerfile: favourite-service/Dockerfile
+      args:
+        PROJECT_VERSION: 0.1.0
+        ENVIRONMENT: dev
     ports:
       - 8800:8800
+    networks:
+      - microservices_network
     environment:
       - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
+      - EUREKA_CLIENT_REGION=default
+      - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
+      - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
+      - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_HOSTNAME=favourite-service-container
+    depends_on:
+      zipkin-container:
+        condition: service_healthy
+      service-discovery-container:
+        condition: service_healthy
+      cloud-config-container:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8800/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
 
-
-
+networks:
+  microservices_network:
+    driver: bridge

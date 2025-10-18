@@ -1,11 +1,15 @@
 
-FROM openjdk:11
+FROM maven:3.8.8-eclipse-temurin-11 AS build
 ARG PROJECT_VERSION=0.1.0
-RUN mkdir -p /home/app
+WORKDIR /workspace
+COPY . .
+RUN mvn -B -DskipTests -pl cloud-config -am clean package
+
+FROM eclipse-temurin:11-jre AS runtime
+ARG PROJECT_VERSION=0.1.0
 WORKDIR /home/app
-COPY cloud-config/ .
-ADD cloud-config/target/cloud-config-v${PROJECT_VERSION}.jar cloud-config.jar
+COPY --from=build /workspace/cloud-config/target/cloud-config-v${PROJECT_VERSION}.jar app.jar
 EXPOSE 9296
-ENTRYPOINT ["java", "-jar", "cloud-config.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
 
 
