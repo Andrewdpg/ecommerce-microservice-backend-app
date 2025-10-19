@@ -1,11 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloud-config
+  namespace: ${NAMESPACE}
+spec:
+  selector:
+    app: cloud-config
+  ports:
+    - port: 9296
+      targetPort: 9296
+  type: ClusterIP
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cloud-config
   namespace: ${NAMESPACE}
-  labels:
-    app: cloud-config
-    version: v1
 spec:
   replicas: 1
   selector:
@@ -15,64 +25,36 @@ spec:
     metadata:
       labels:
         app: cloud-config
-        version: v1
     spec:
       containers:
-      - name: cloud-config
-        image: ${REGISTRY}/cloud-config:${IMAGE_TAG}
-        ports:
-        - containerPort: 9296
-        env:
-        - name: SPRING_PROFILES_ACTIVE
-          value: "dev"
-        - name: SPRING_ZIPKIN_BASE_URL
-          value: "http://zipkin:9411"
-        - name: EUREKA_CLIENT_REGION
-          value: "default"
-        - name: EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT
-          value: "myzone"
-        - name: EUREKA_CLIENT_SERVICEURL_MYZONE
-          value: "http://service-discovery-container:8761/eureka"
-        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          value: "http://service-discovery-container:8761/eureka/"
-        - name: JAVA_OPTS
-          value: "-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport"
-        - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
-          value: "true"
-        - name: EUREKA_INSTANCE_HOSTNAME
-          value: "cloud-config"
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 9296
-          initialDelaySeconds: 60
-          periodSeconds: 30
-        readinessProbe:
-          httpGet:
-            path: /actuator/health
-            port: 9296
-          initialDelaySeconds: 30
-          periodSeconds: 10
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: cloud-config-container
-  namespace: ${NAMESPACE}
-  labels:
-    app: cloud-config
-spec:
-  selector:
-    app: cloud-config
-  ports:
-  - port: 9296
-    targetPort: 9296
-    protocol: TCP
-  type: ClusterIP
+        - name: cloud-config
+          image: ${REGISTRY}/cloud-config:${IMAGE_TAG}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9296
+          envFrom:
+            - configMapRef:
+                name: micro-config
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "768Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 9296
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 9296
+            initialDelaySeconds: 150
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3

@@ -17,6 +17,7 @@ pipeline {
         K8S_NAMESPACE_STAGING = 'microservices-staging'
         K8S_NAMESPACE_PROD = 'microservices-prod'
         KUBECONFIG_CREDENTIAL = 'kubeconfig'
+        RELEASE_VERSION = '1.0.0'
     }
     
     options {
@@ -291,6 +292,30 @@ pipeline {
             steps {
                 script {
                     runE2ETests()
+                }
+            }
+        }
+
+        stage('Generate Release Notes') {
+            steps {
+                script {
+                    sh """
+                        # Generar notas de release automáticas
+                        git log --oneline --since="7 days ago" > CHANGELOG.md
+                        echo "## Release ${RELEASE_VERSION}" > release_notes.md
+                        echo "### Date: \$(date)" >> release_notes.md
+                        echo "### Changes:" >> release_notes.md
+                        cat CHANGELOG.md >> release_notes.md
+                        
+                        # Crear tag de release
+                        git tag -a v${RELEASE_VERSION} -m "Release version ${RELEASE_VERSION}"
+                        git push origin v${RELEASE_VERSION}
+                    """
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'release_notes.md', fingerprint: true
                 }
             }
         }

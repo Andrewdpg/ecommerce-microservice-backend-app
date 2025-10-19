@@ -5,9 +5,19 @@ metadata:
   namespace: ${NAMESPACE}
 data:
   SPRING_PROFILES_ACTIVE: "dev"
-  SPRING_ZIPKIN_BASE_URL: "http://zipkin:9411"
-  EUREKA_CLIENT_REGION: "default"
-  EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT: "myzone"
-  EUREKA_CLIENT_SERVICEURL_MYZONE: "http://service-discovery-container:8761/eureka"
-  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery-container:8761/eureka/"
-  SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config-container:9296/"
+  JAVA_OPTS: "-Xms256m -Xmx512m"
+
+  # Service Discovery
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery.${NAMESPACE}.svc.cluster.local:8761/eureka/"
+
+  # Cloud Config
+  SPRING_CLOUD_CONFIG_URI: "http://cloud-config.${NAMESPACE}.svc.cluster.local:9296"
+  SPRING_ZIPKIN_BASE_URL: http://zipkin:9411/
+
+  # URLs de servicios para la comunicación interna
+  USER_SERVICE_HOST: "http://user-service.${NAMESPACE}.svc.cluster.local:8700"
+  PRODUCT_SERVICE_HOST: "http://product-service.${NAMESPACE}.svc.cluster.local:8500"
+  ORDER_SERVICE_HOST: "http://order-service.${NAMESPACE}.svc.cluster.local:8300"
+  FAVOURITE_SERVICE_HOST: "http://favourite-service.${NAMESPACE}.svc.cluster.local:8800"
+  SHIPPING_SERVICE_HOST: "http://shipping-service.${NAMESPACE}.svc.cluster.local:8600"
+  PAYMENT_SERVICE_HOST: "http://payment-service.${NAMESPACE}.svc.cluster.local:8400"

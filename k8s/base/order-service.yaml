@@ -22,42 +22,9 @@ spec:
         image: ${REGISTRY}/order-service:${IMAGE_TAG}
         ports:
         - containerPort: 8300
-        env:
-        - name: SPRING_PROFILES_ACTIVE
-          valueFrom:
-            configMapKeyRef:
+        envFrom:
+          - configMapRef:
               name: micro-config
-              key: SPRING_PROFILES_ACTIVE
-        - name: SPRING_ZIPKIN_BASE_URL
-          valueFrom:
-            configMapKeyRef:
-              name: micro-config
-              key: SPRING_ZIPKIN_BASE_URL
-        - name: EUREKA_CLIENT_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: micro-config
-              key: EUREKA_CLIENT_REGION
-        - name: EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT
-          valueFrom:
-            configMapKeyRef:
-              name: micro-config
-              key: EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT
-        - name: EUREKA_CLIENT_SERVICEURL_MYZONE
-          valueFrom:
-            configMapKeyRef:
-              name: micro-config
-              key: EUREKA_CLIENT_SERVICEURL_MYZONE
-        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          valueFrom:
-            configMapKeyRef:
-              name: micro-config
-              key: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-        - name: SPRING_CONFIG_IMPORT
-          valueFrom:
-            configMapKeyRef:
-              name: micro-config
-              key: SPRING_CONFIG_IMPORT
         resources:
           requests:
             memory: "256Mi"

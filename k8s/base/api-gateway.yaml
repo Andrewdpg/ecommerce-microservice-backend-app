@@ -22,27 +22,9 @@ spec:
         image: ${REGISTRY}/api-gateway:${IMAGE_TAG}
         ports:
         - containerPort: 8080
-        env:
-        - name: SPRING_PROFILES_ACTIVE
-          value: "dev"
-        - name: SPRING_ZIPKIN_BASE_URL
-          value: "http://zipkin:9411"
-        - name: SPRING_CONFIG_IMPORT
-          value: "optional:configserver:http://cloud-config-container:9296/"
-        - name: EUREKA_CLIENT_REGION
-          value: "default"
-        - name: EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT
-          value: "myzone"
-        - name: EUREKA_CLIENT_SERVICEURL_MYZONE
-          value: "http://service-discovery-container:8761/eureka"
-        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          value: "http://service-discovery-container:8761/eureka/"
-        - name: JAVA_OPTS
-          value: "-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport"
-        - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
-          value: "true"
-        - name: EUREKA_INSTANCE_HOSTNAME
-          value: "api-gateway"
+        envFrom:
+          - configMapRef:
+              name: micro-config
         resources:
           requests:
             memory: "256Mi"
