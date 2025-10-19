@@ -64,6 +64,21 @@ pipeline {
                 stash name: 'workspace', includes: '**/*'
             }
         }
+
+        stage('Deploy to Production') {
+            when {
+                equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+            }
+            steps {
+                unstash 'workspace'
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        echo "Deploying to production environment..."
+                        deployToEnvironment('production', K8S_NAMESPACE_PROD)
+                    }
+                }
+            }
+        }
         
         stage('Build & Test Changed Services') {
             parallel {
@@ -193,20 +208,7 @@ pipeline {
             }
         }
         
-        stage('Deploy to Production') {
-            when {
-                equals expected: 'production', actual: env.TARGET_ENVIRONMENT
-            }
-            steps {
-                unstash 'workspace'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
-                    script {
-                        echo "Deploying to production environment..."
-                        deployToEnvironment('production', K8S_NAMESPACE_PROD)
-                    }
-                }
-            }
-        }
+
         
         stage('Health Check Production') {
             when {
@@ -308,7 +310,7 @@ def deployToEnvironment(environment, namespace) {
     echo "Deploying to ${environment} environment (namespace: ${namespace})..."
     
     // Create namespace if not exists
-    sh "kubectl create namespace ${namespace} --dry-run=client -o yaml | kubectl apply -f -"
+    sh "kubectl --kubeconfig="\$KCFG" create namespace ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig="\$KCFG" apply -f -"
     
     // Deploy changed services
     def changedServices = env.CHANGED_SERVICES.split(',')
