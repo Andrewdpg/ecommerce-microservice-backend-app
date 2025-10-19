@@ -51,7 +51,7 @@ pipeline {
                     echo "IMAGE_TAG: ${env.IMAGE_TAG}"
                     
                     // Detect changed services
-                    def changedServices = ["user-service"]
+                    def changedServices = ["user-service", "service-discovery", "cloud-config", "api-gateway"]
                     
                     // If no specific changes detected, build all services
                     if (changedServices.isEmpty()) {
