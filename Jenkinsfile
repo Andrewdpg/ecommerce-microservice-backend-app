@@ -310,7 +310,7 @@ def deployToEnvironment(environment, namespace) {
     echo "Deploying to ${environment} environment (namespace: ${namespace})..."
     
     // Create namespace if not exists
-    sh "kubectl --kubeconfig="\$KCFG" create namespace ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig="\$KCFG" apply -f -"
+    sh "kubectl --kubeconfig="${KCFG}" create namespace ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig="${KCFG}" apply -f -"
     
     // Deploy changed services
     def changedServices = env.CHANGED_SERVICES.split(',')
