@@ -178,6 +178,21 @@ pipeline {
             }
         }
         
+        stage('Deploy to Production') {
+            when {
+                equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+            }
+            steps {
+                unstash 'workspace'
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        echo "Deploying to production environment..."
+                        deployToEnvironment('production', K8S_NAMESPACE_PROD)
+                    }
+                }
+            }
+        }
+        
         stage('Deploy to Staging') {
             when {
                 equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
@@ -309,10 +324,20 @@ def buildService(serviceName, servicePort) {
 def deployToEnvironment(environment, namespace) {
     echo "Deploying to ${environment} environment (namespace: ${namespace})..."
     
+    // Define services locally
+    def services = [
+        [name: 'user-service', port: '8700'],
+        [name: 'product-service', port: '8500'],
+        [name: 'order-service', port: '8300'],
+        [name: 'payment-service', port: '8400'],
+        [name: 'shipping-service', port: '8600'],
+        [name: 'favourite-service', port: '8800']
+    ]
+    
     // Deploy changed services
     def changedServices = env.CHANGED_SERVICES.split(',')
     for (serviceName in changedServices) {
-        def service = SERVICES.find { it.name == serviceName }
+        def service = services.find { it.name == serviceName }
         if (service) {
             deployService(serviceName, service.port, namespace)
         }
