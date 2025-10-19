@@ -429,10 +429,13 @@ def deployToEnvironment(environment, namespace) {
 def deployCoreService(serviceName, servicePort, namespace) {
     echo "Deploying core service ${serviceName} to ${namespace}..."
     
-    // Apply Kubernetes manifests for core services
+    // Apply Kubernetes manifests for core services using sed for variable substitution
     sh """
-        # Apply the manifest with environment variable substitution
-        envsubst < k8s/base/${serviceName}.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
+        # Apply the manifest with environment variable substitution using sed
+        sed -e "s|\\${REGISTRY}|${REGISTRY}|g" \
+            -e "s|\\${NAMESPACE}|${namespace}|g" \
+            -e "s|\\${IMAGE_TAG}|${IMAGE_TAG}|g" \
+            k8s/base/${serviceName}.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
     """
     
     echo "Successfully deployed core service ${serviceName} to ${namespace}"
