@@ -310,7 +310,7 @@ def deployToEnvironment(environment, namespace) {
     echo "Deploying to ${environment} environment (namespace: ${namespace})..."
     
     // Create namespace if not exists
-    sh "kubectl --kubeconfig="${KCFG}" create namespace ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig="${KCFG}" apply -f -"
+    sh "kubectl create namespace ${namespace} --kubeconfig="${KCFG}" --dry-run=client -o yaml | kubectl --kubeconfig="${KCFG}" apply -f -"
     
     // Deploy changed services
     def changedServices = env.CHANGED_SERVICES.split(',')
@@ -327,15 +327,15 @@ def deployService(serviceName, servicePort, namespace) {
     
     // Deploy to Kubernetes using registry image
     sh """
-        kubectl --kubeconfig="\$KCFG" set image deployment/${serviceName} ${serviceName}=${REGISTRY}/${serviceName}:${IMAGE_TAG} -n ${namespace} || \
-        kubectl --kubeconfig="\$KCFG" create deployment ${serviceName} --image=${REGISTRY}/${serviceName}:${IMAGE_TAG} -n ${namespace}
+        kubectl --kubeconfig="${KCFG}" set image deployment/${serviceName} ${serviceName}=${REGISTRY}/${serviceName}:${IMAGE_TAG} -n ${namespace} || \
+        kubectl --kubeconfig="${KCFG}" create deployment ${serviceName} --image=${REGISTRY}/${serviceName}:${IMAGE_TAG} -n ${namespace}
     """
     
     // Expose service
-    sh "kubectl --kubeconfig=\"\$KCFG\" expose deployment ${serviceName} --port=${servicePort} --target-port=${servicePort} -n ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig=\"\$KCFG\" apply -f -"
+    sh "kubectl --kubeconfig="${KCFG}" expose deployment ${serviceName} --port=${servicePort} --target-port=${servicePort} -n ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig="${KCFG}" apply -f -"
     
     // Wait for deployment to be ready
-    sh "kubectl --kubeconfig=\"\$KCFG\" rollout status deployment/${serviceName} -n ${namespace} --timeout=300s"
+    sh "kubectl --kubeconfig="${KCFG}" rollout status deployment/${serviceName} -n ${namespace} --timeout=300s"
     
     echo "Successfully deployed ${serviceName} to ${namespace}"
 }
@@ -345,19 +345,19 @@ def healthCheckEnvironment(namespace) {
     
     sh """
         # Verificar que todos los pods están corriendo
-        kubectl --kubeconfig="\$KCFG" get pods -n ${namespace}
+        kubectl --kubeconfig="${KCFG}" get pods -n ${namespace}
         
         # Verificar servicios
-        kubectl --kubeconfig="\$KCFG" get svc -n ${namespace}
+        kubectl --kubeconfig="${KCFG}" get svc -n ${namespace}
         
         # Health checks básicos
         if [ -f "./scripts/health-check.sh" ]; then
             chmod +x ./scripts/health-check.sh
-            ./scripts/health-check.sh "\$KCFG" "${namespace}" 300
+            ./scripts/health-check.sh "${KCFG}" "${namespace}" 300
         else
             echo "Health check script not found, performing basic checks"
             # Basic health checks
-            kubectl --kubeconfig="\$KCFG" get pods -n ${namespace} --field-selector=status.phase!=Running
+            kubectl --kubeconfig="${KCFG}" get pods -n ${namespace} --field-selector=status.phase!=Running
         fi
     """
 }
@@ -371,8 +371,8 @@ def runIntegrationTests() {
     // Test service connectivity based on environment
     def namespace = env.TARGET_ENVIRONMENT == 'staging' ? K8S_NAMESPACE_STAGING : K8S_NAMESPACE_PROD
     sh """
-        kubectl --kubeconfig="\$KCFG" get pods -n ${namespace}
-        kubectl --kubeconfig="\$KCFG" get svc -n ${namespace}
+        kubectl --kubeconfig="${KCFG}" get pods -n ${namespace}
+        kubectl --kubeconfig="${KCFG}" get svc -n ${namespace}
     """
     
     // Run integration tests (you can add specific test commands here)
