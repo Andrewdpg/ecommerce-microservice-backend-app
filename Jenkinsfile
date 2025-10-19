@@ -373,6 +373,12 @@ def buildService(serviceName, servicePort) {
 
 def deployCoreServicesToEnvironment(environment, namespace) {
     echo "Deploying core services to ${environment} environment (namespace: ${namespace})..."
+
+    // Apply the ConfigMap
+    sh """
+        sed -e "s|\\${NAMESPACE}|${namespace}|g" \
+            k8s/base/configmap.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
+    """
     
     // Deploy core services in order with waits
     deployService('zipkin', '9411', namespace)
@@ -393,7 +399,7 @@ def deployToEnvironment(environment, namespace) {
     
     // Aplicar el ConfigMap
     sh """
-        sed -e "s|\\${NAMESPACE}|${namespace}|g" \\
+        sed -e "s|\\${NAMESPACE}|${namespace}|g" \
             k8s/base/configmap.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
     """
     
@@ -423,7 +429,7 @@ def deployService(serviceName, servicePort, namespace) {
     // Apply Kubernetes manifests using sed for variable substitution
     sh """
         sed -e "s|\\${REGISTRY}|${REGISTRY}|g" \
-            -e "s|\\${NAMESPACE}|${namespace}|g" \
+            -e "s|\\${namespace}|${NAMESPACE}|g" \
             -e "s|\\${IMAGE_TAG}|${IMAGE_TAG}|g" \
             k8s/base/${serviceName}.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
     """
