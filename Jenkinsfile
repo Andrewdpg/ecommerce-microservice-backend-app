@@ -11,7 +11,8 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_REGISTRY = 'docker.io/andrewdpg'
+        REGISTRY = 'docker.io/andrewdpg'
+        DOCKERHUB = 'docker-hub-credentials'
         K8S_NAMESPACE_STAGING = 'microservices-staging'
         K8S_NAMESPACE_PROD = 'microservices-prod'
         KUBECONFIG_CREDENTIAL = 'kubeconfig'
@@ -24,6 +25,7 @@ pipeline {
     stages {
         stage('Checkout & Detect Changes') {
             steps {
+                deleteDir()
                 checkout scm
                 script {
                     env.DEPLOY_TIMESTAMP = sh(script: 'date +%Y%m%d-%H%M%S', returnStdout: true).trim()
@@ -39,8 +41,13 @@ pipeline {
                         env.TARGET_ENVIRONMENT = 'dev'
                     }
                     
+                    // Create image tags
+                    env.IMAGE_TAG = "${env.GIT_BRANCH}-${env.GIT_COMMIT_SHORT}"
+                    env.LATEST_TAG = "latest"
+                    
                     echo "Branch: ${env.GIT_BRANCH}"
                     echo "Target Environment: ${env.TARGET_ENVIRONMENT}"
+                    echo "IMAGE_TAG: ${env.IMAGE_TAG}"
                     
                     // Detect changed services
                     def changedServices = ["user-service"]
@@ -67,6 +74,89 @@ pipeline {
                     steps {
                         script {
                             buildService('user-service', '8700')
+                        }
+                    }
+                }
+                
+                stage('Build Product Service') {
+                    when {
+                        expression { env.CHANGED_SERVICES.contains('product-service') }
+                    }
+                    steps {
+                        script {
+                            buildService('product-service', '8500')
+                        }
+                    }
+                }
+                
+                stage('Build Order Service') {
+                    when {
+                        expression { env.CHANGED_SERVICES.contains('order-service') }
+                    }
+                    steps {
+                        script {
+                            buildService('order-service', '8300')
+                        }
+                    }
+                }
+                
+                stage('Build Payment Service') {
+                    when {
+                        expression { env.CHANGED_SERVICES.contains('payment-service') }
+                    }
+                    steps {
+                        script {
+                            buildService('payment-service', '8400')
+                        }
+                    }
+                }
+                
+                stage('Build Shipping Service') {
+                    when {
+                        expression { env.CHANGED_SERVICES.contains('shipping-service') }
+                    }
+                    steps {
+                        script {
+                            buildService('shipping-service', '8600')
+                        }
+                    }
+                }
+                
+                stage('Build Favourite Service') {
+                    when {
+                        expression { env.CHANGED_SERVICES.contains('favourite-service') }
+                    }
+                    steps {
+                        script {
+                            buildService('favourite-service', '8800')
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Docker Push') {
+            when {
+                anyOf {
+                    equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
+                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+                }
+            }
+            steps {
+                unstash 'workspace'
+                withCredentials([usernamePassword(credentialsId: "${DOCKERHUB}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        '''
+                        
+                        // Push changed services
+                        def changedServices = env.CHANGED_SERVICES.split(',')
+                        for (serviceName in changedServices) {
+                            sh """
+                                docker push ${REGISTRY}/${serviceName}:${IMAGE_TAG}
+                                docker push ${REGISTRY}/${serviceName}:${LATEST_TAG}
+                            """
                         }
                     }
                 }
@@ -208,27 +298,10 @@ def buildService(serviceName, servicePort) {
         }
     }
     
-    // Build Docker image
-    sh "docker build -f ${serviceName}/Dockerfile -t ${serviceName}:${BUILD_NUMBER} ."
-    sh "docker tag ${serviceName}:${BUILD_NUMBER} ${serviceName}:latest"
+    // Build Docker image with proper tags
+    sh "docker build -f ${serviceName}/Dockerfile -t ${REGISTRY}/${serviceName}:${IMAGE_TAG} -t ${REGISTRY}/${serviceName}:${LATEST_TAG} ."
     
-    // Tag for registry (only if registry is available)
-    script {
-        try {
-            sh "docker tag ${serviceName}:${BUILD_NUMBER} ${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER}"
-            sh "docker tag ${serviceName}:${BUILD_NUMBER} ${DOCKER_REGISTRY}/${serviceName}:latest"
-            
-            // Push to registry
-            sh "docker push ${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER}"
-            sh "docker push ${DOCKER_REGISTRY}/${serviceName}:latest"
-            echo "Successfully pushed to registry: ${DOCKER_REGISTRY}"
-        } catch (Exception e) {
-            echo "Registry ${DOCKER_REGISTRY} not available, skipping push. Error: ${e.getMessage()}"
-            echo "Images built locally: ${serviceName}:${BUILD_NUMBER}, ${serviceName}:latest"
-        }
-    }
-    
-    echo "Successfully built and pushed ${serviceName}:${BUILD_NUMBER}"
+    echo "Successfully built ${serviceName}:${IMAGE_TAG}"
 }
 
 def deployToEnvironment(environment, namespace) {
@@ -250,29 +323,17 @@ def deployToEnvironment(environment, namespace) {
 def deployService(serviceName, servicePort, namespace) {
     echo "Deploying ${serviceName} to ${namespace}..."
     
-    // Deploy to Kubernetes
-    script {
-        try {
-            // Try with registry first
-            sh """
-                kubectl set image deployment/${serviceName} ${serviceName}=${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER} -n ${namespace} || \
-                kubectl create deployment ${serviceName} --image=${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER} -n ${namespace}
-            """
-        } catch (Exception e) {
-            echo "Registry image not available, using local image: ${serviceName}:${BUILD_NUMBER}"
-            // Fallback to local image
-            sh """
-                kubectl set image deployment/${serviceName} ${serviceName}=${serviceName}:${BUILD_NUMBER} -n ${namespace} || \
-                kubectl create deployment ${serviceName} --image=${serviceName}:${BUILD_NUMBER} -n ${namespace}
-            """
-        }
-    }
+    // Deploy to Kubernetes using registry image
+    sh """
+        kubectl --kubeconfig="\$KCFG" set image deployment/${serviceName} ${serviceName}=${REGISTRY}/${serviceName}:${IMAGE_TAG} -n ${namespace} || \
+        kubectl --kubeconfig="\$KCFG" create deployment ${serviceName} --image=${REGISTRY}/${serviceName}:${IMAGE_TAG} -n ${namespace}
+    """
     
     // Expose service
-    sh "kubectl expose deployment ${serviceName} --port=${servicePort} --target-port=${servicePort} -n ${namespace} --dry-run=client -o yaml | kubectl apply -f -"
+    sh "kubectl --kubeconfig=\"\$KCFG\" expose deployment ${serviceName} --port=${servicePort} --target-port=${servicePort} -n ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig=\"\$KCFG\" apply -f -"
     
     // Wait for deployment to be ready
-    sh "kubectl rollout status deployment/${serviceName} -n ${namespace} --timeout=300s"
+    sh "kubectl --kubeconfig=\"\$KCFG\" rollout status deployment/${serviceName} -n ${namespace} --timeout=300s"
     
     echo "Successfully deployed ${serviceName} to ${namespace}"
 }
@@ -282,19 +343,19 @@ def healthCheckEnvironment(namespace) {
     
     sh """
         # Verificar que todos los pods están corriendo
-        kubectl get pods -n ${namespace}
+        kubectl --kubeconfig="\$KCFG" get pods -n ${namespace}
         
         # Verificar servicios
-        kubectl get svc -n ${namespace}
+        kubectl --kubeconfig="\$KCFG" get svc -n ${namespace}
         
         # Health checks básicos
         if [ -f "./scripts/health-check.sh" ]; then
             chmod +x ./scripts/health-check.sh
-            ./scripts/health-check.sh "${namespace}" 300
+            ./scripts/health-check.sh "\$KCFG" "${namespace}" 300
         else
             echo "Health check script not found, performing basic checks"
             # Basic health checks
-            kubectl get pods -n ${namespace} --field-selector=status.phase!=Running
+            kubectl --kubeconfig="\$KCFG" get pods -n ${namespace} --field-selector=status.phase!=Running
         fi
     """
 }
@@ -308,8 +369,8 @@ def runIntegrationTests() {
     // Test service connectivity based on environment
     def namespace = env.TARGET_ENVIRONMENT == 'staging' ? K8S_NAMESPACE_STAGING : K8S_NAMESPACE_PROD
     sh """
-        kubectl get pods -n ${namespace}
-        kubectl get svc -n ${namespace}
+        kubectl --kubeconfig="\$KCFG" get pods -n ${namespace}
+        kubectl --kubeconfig="\$KCFG" get svc -n ${namespace}
     """
     
     // Run integration tests (you can add specific test commands here)
