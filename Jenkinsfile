@@ -2,13 +2,7 @@ def SERVICES = [
     [name: 'user-service', port: '8700', path: 'user-service'],
     [name: 'product-service', port: '8500', path: 'product-service'],
     [name: 'order-service', port: '8300', path: 'order-service'],
-    [name: 'payment-service', port: '8400', path: 'payment-service'],
     [name: 'shipping-service', port: '8600', path: 'shipping-service'],
-    [name: 'favourite-service', port: '8800', path: 'favourite-service']
-]
-
-def CORE_SERVICES = [
-    [name: 'zipkin', port: '9411', path: 'zipkin'],
     [name: 'service-discovery', port: '8761', path: 'service-discovery'],
     [name: 'cloud-config', port: '9296', path: 'cloud-config'],
     [name: 'api-gateway', port: '8080', path: 'api-gateway']
@@ -72,21 +66,12 @@ pipeline {
             }
         }
 
-        stage('Deploy Core Services to Production') {
-            steps {
-                unstash 'workspace'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
-                    script {
-                        echo "Deploying core services to production environment..."
-                        deployCoreServicesToEnvironment('production', K8S_NAMESPACE_PROD)
-                    }
-                }
-            }
-        }
-
         stage('Build & Test Core Services') {
             parallel {
                 stage('Build Service Discovery') {
+                    when {
+                        expression { env.CHANGED_SERVICES.contains('service-discovery') }
+                    }
                     steps {
                         script {
                             buildService('service-discovery', '8761')
@@ -95,6 +80,9 @@ pipeline {
                 }
                 
                 stage('Build Cloud Config') {
+                    when {
+                        expression { env.CHANGED_SERVICES.contains('cloud-config') }
+                    }
                     steps {
                         script {
                             buildService('cloud-config', '9296')
@@ -103,6 +91,9 @@ pipeline {
                 }
                 
                 stage('Build API Gateway') {
+                    when {
+                        expression { env.CHANGED_SERVICES.contains('api-gateway') }
+                    }
                     steps {
                         script {
                             buildService('api-gateway', '8080')
@@ -147,17 +138,6 @@ pipeline {
                     }
                 }
                 
-                stage('Build Payment Service') {
-                    when {
-                        expression { env.CHANGED_SERVICES.contains('payment-service') }
-                    }
-                    steps {
-                        script {
-                            buildService('payment-service', '8400')
-                        }
-                    }
-                }
-                
                 stage('Build Shipping Service') {
                     when {
                         expression { env.CHANGED_SERVICES.contains('shipping-service') }
@@ -165,17 +145,6 @@ pipeline {
                     steps {
                         script {
                             buildService('shipping-service', '8600')
-                        }
-                    }
-                }
-                
-                stage('Build Favourite Service') {
-                    when {
-                        expression { env.CHANGED_SERVICES.contains('favourite-service') }
-                    }
-                    steps {
-                        script {
-                            buildService('favourite-service', '8800')
                         }
                     }
                 }
@@ -209,8 +178,21 @@ pipeline {
                 }
             }
         }
-        
-        
+
+        stage('Deploy Core Services to Production') {
+            when {
+                equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+            }
+            steps {
+                unstash 'workspace'
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        echo "Deploying core services to production environment..."
+                        deployCoreServicesToEnvironment('production', K8S_NAMESPACE_PROD)
+                    }
+                }
+            }
+        }
         
         stage('Deploy to Production') {
             when {
@@ -271,7 +253,6 @@ pipeline {
                 }
             }
         }
-        
 
         
         stage('Health Check Production') {
@@ -383,14 +364,21 @@ def deployCoreServicesToEnvironment(environment, namespace) {
     deployService('zipkin', '9411', namespace)
     sh "sleep 30" // Wait for zipkin to be ready
     
-    //deployService('service-discovery', '8761', namespace)
-    //sh "sleep 60" // Wait for eureka to be ready
+    // Define services locally
+    def services = [
+        [name: 'service-discovery', port: '8761'],
+        [name: 'cloud-config', port: '9296'],
+        [name: 'api-gateway', port: '8080'],
+    ]
     
-    //deployService('cloud-config', '9296', namespace)
-    //sh "sleep 30" // Wait for cloud-config to be ready
-    
-    //deployService('api-gateway', '8080', namespace)
-//    sh "sleep 30" // Wait for api-gateway to be ready
+    // Deploy core services
+    def changedServices = env.CHANGED_SERVICES.split(',')
+    for (serviceName in changedServices) {
+        def service = services.find { it.name == serviceName }
+        if (service) {
+            deployService(serviceName, service.port, namespace)
+        }
+    }
 }
 
 def deployToEnvironment(environment, namespace) {
