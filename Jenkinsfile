@@ -7,6 +7,13 @@ def SERVICES = [
     [name: 'favourite-service', port: '8800', path: 'favourite-service']
 ]
 
+def CORE_SERVICES = [
+    [name: 'zipkin', port: '9411', path: 'zipkin'],
+    [name: 'service-discovery', port: '8761', path: 'service-discovery'],
+    [name: 'cloud-config', port: '9296', path: 'cloud-config'],
+    [name: 'api-gateway', port: '8080', path: 'api-gateway']
+]
+
 pipeline {
     agent any
     
@@ -75,6 +82,34 @@ pipeline {
                     script {
                         echo "Deploying to production environment..."
                         deployToEnvironment('production', K8S_NAMESPACE_PROD)
+                    }
+                }
+            }
+        }
+        
+        stage('Build & Test Core Services') {
+            parallel {
+                stage('Build Service Discovery') {
+                    steps {
+                        script {
+                            buildService('service-discovery', '8761')
+                        }
+                    }
+                }
+                
+                stage('Build Cloud Config') {
+                    steps {
+                        script {
+                            buildService('cloud-config', '9296')
+                        }
+                    }
+                }
+                
+                stage('Build API Gateway') {
+                    steps {
+                        script {
+                            buildService('api-gateway', '8080')
+                        }
                     }
                 }
             }
@@ -178,6 +213,21 @@ pipeline {
             }
         }
         
+        stage('Deploy Core Services to Production') {
+            when {
+                equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+            }
+            steps {
+                unstash 'workspace'
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        echo "Deploying core services to production environment..."
+                        deployCoreServicesToEnvironment('production', K8S_NAMESPACE_PROD)
+                    }
+                }
+            }
+        }
+        
         stage('Deploy to Production') {
             when {
                 equals expected: 'production', actual: env.TARGET_ENVIRONMENT
@@ -188,6 +238,21 @@ pipeline {
                     script {
                         echo "Deploying to production environment..."
                         deployToEnvironment('production', K8S_NAMESPACE_PROD)
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy Core Services to Staging') {
+            when {
+                equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
+            }
+            steps {
+                unstash 'workspace'
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        echo "Deploying core services to staging environment..."
+                        deployCoreServicesToEnvironment('staging', K8S_NAMESPACE_STAGING)
                     }
                 }
             }
@@ -321,6 +386,23 @@ def buildService(serviceName, servicePort) {
     echo "Successfully built ${serviceName}:${IMAGE_TAG}"
 }
 
+def deployCoreServicesToEnvironment(environment, namespace) {
+    echo "Deploying core services to ${environment} environment (namespace: ${namespace})..."
+    
+    // Deploy core services in order with waits
+    deployCoreService('zipkin', '9411', namespace)
+    sh "sleep 30" // Wait for zipkin to be ready
+    
+    deployCoreService('service-discovery', '8761', namespace)
+    sh "sleep 60" // Wait for eureka to be ready
+    
+    deployCoreService('cloud-config', '9296', namespace)
+    sh "sleep 30" // Wait for cloud-config to be ready
+    
+    deployCoreService('api-gateway', '8080', namespace)
+    sh "sleep 30" // Wait for api-gateway to be ready
+}
+
 def deployToEnvironment(environment, namespace) {
     echo "Deploying to ${environment} environment (namespace: ${namespace})..."
     
@@ -342,6 +424,18 @@ def deployToEnvironment(environment, namespace) {
             deployService(serviceName, service.port, namespace)
         }
     }
+}
+
+def deployCoreService(serviceName, servicePort, namespace) {
+    echo "Deploying core service ${serviceName} to ${namespace}..."
+    
+    // Apply Kubernetes manifests for core services
+    sh """
+        # Apply the manifest with environment variable substitution
+        envsubst < k8s/base/${serviceName}.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
+    """
+    
+    echo "Successfully deployed core service ${serviceName} to ${namespace}"
 }
 
 def deployService(serviceName, servicePort, namespace) {

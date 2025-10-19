@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-discovery
+  namespace: ${NAMESPACE}
+  labels:
+    app: service-discovery
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-discovery
+  template:
+    metadata:
+      labels:
+        app: service-discovery
+        version: v1
+    spec:
+      containers:
+      - name: service-discovery
+        image: ${REGISTRY}/service-discovery:${IMAGE_TAG}
+        ports:
+        - containerPort: 8761
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "dev"
+        - name: SPRING_ZIPKIN_BASE_URL
+          value: "http://zipkin:9411"
+        - name: JAVA_OPTS
+          value: "-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport"
+        - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+          value: "true"
+        - name: EUREKA_INSTANCE_HOSTNAME
+          value: "service-discovery"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8761
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8761
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-discovery-container
+  namespace: ${NAMESPACE}
+  labels:
+    app: service-discovery
+spec:
+  selector:
+    app: service-discovery
+  ports:
+  - port: 8761
+    targetPort: 8761
+    protocol: TCP
+  type: ClusterIP
