@@ -1,16 +1,11 @@
 
-FROM maven:3.8.8-eclipse-temurin-11 AS build
+FROM openjdk:11
 ARG PROJECT_VERSION=0.1.0
-WORKDIR /workspace
-COPY . .
-RUN mvn -B -DskipTests -pl payment-service -am clean package
-
-FROM eclipse-temurin:11-jre AS runtime
-ARG PROJECT_VERSION=0.1.0
-ENV SPRING_PROFILES_ACTIVE=dev
+RUN mkdir -p /home/app
 WORKDIR /home/app
-COPY --from=build /workspace/payment-service/target/payment-service-v${PROJECT_VERSION}.jar app.jar
+ENV SPRING_PROFILES_ACTIVE dev
+COPY payment-service/ .
+ADD payment-service/target/payment-service-v${PROJECT_VERSION}.jar payment-service.jar
 EXPOSE 8400
-ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "app.jar"]
-
+ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "payment-service.jar"]
 

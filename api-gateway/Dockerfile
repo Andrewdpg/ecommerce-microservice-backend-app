@@ -1,16 +1,11 @@
 
-FROM maven:3.8.8-eclipse-temurin-11 AS build
+FROM openjdk:11
 ARG PROJECT_VERSION=0.1.0
-WORKDIR /workspace
-COPY . .
-RUN mvn -B -DskipTests -pl api-gateway -am clean package
-
-FROM eclipse-temurin:11-jre AS runtime
-ARG PROJECT_VERSION=0.1.0
-ENV SPRING_PROFILES_ACTIVE=dev
+RUN mkdir -p /home/app
 WORKDIR /home/app
-COPY --from=build /workspace/api-gateway/target/api-gateway-v${PROJECT_VERSION}.jar app.jar
+ENV SPRING_PROFILES_ACTIVE dev
+COPY api-gateway/ .
+ADD api-gateway/target/api-gateway-v${PROJECT_VERSION}.jar api-gateway.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "app.jar"]
-
+ENTRYPOINT ["java", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "api-gateway.jar"]
 

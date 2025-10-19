@@ -390,21 +390,27 @@ def deployCoreServicesToEnvironment(environment, namespace) {
     echo "Deploying core services to ${environment} environment (namespace: ${namespace})..."
     
     // Deploy core services in order with waits
-    deployCoreService('zipkin', '9411', namespace)
+    deployService('zipkin', '9411', namespace)
     sh "sleep 30" // Wait for zipkin to be ready
     
-    deployCoreService('service-discovery', '8761', namespace)
+    deployService('service-discovery', '8761', namespace)
     sh "sleep 60" // Wait for eureka to be ready
     
-    deployCoreService('cloud-config', '9296', namespace)
+    deployService('cloud-config', '9296', namespace)
     sh "sleep 30" // Wait for cloud-config to be ready
     
-    deployCoreService('api-gateway', '8080', namespace)
+    deployService('api-gateway', '8080', namespace)
     sh "sleep 30" // Wait for api-gateway to be ready
 }
 
 def deployToEnvironment(environment, namespace) {
     echo "Deploying to ${environment} environment (namespace: ${namespace})..."
+    
+    // Aplicar el ConfigMap
+    sh """
+        sed -e "s|\\${NAMESPACE}|${namespace}|g" \\
+            k8s/base/configmap.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
+    """
     
     // Define services locally
     def services = [
@@ -426,33 +432,17 @@ def deployToEnvironment(environment, namespace) {
     }
 }
 
-def deployCoreService(serviceName, servicePort, namespace) {
-    echo "Deploying core service ${serviceName} to ${namespace}..."
-    
-    // Apply Kubernetes manifests for core services using sed for variable substitution
+def deployService(serviceName, servicePort, namespace) {
+    echo "Deploying ${serviceName} to ${namespace}..."
+
+    // Apply Kubernetes manifests using sed for variable substitution
     sh """
-        # Apply the manifest with environment variable substitution using sed
         sed -e "s|\\${REGISTRY}|${REGISTRY}|g" \
             -e "s|\\${NAMESPACE}|${namespace}|g" \
             -e "s|\\${IMAGE_TAG}|${IMAGE_TAG}|g" \
             k8s/base/${serviceName}.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
     """
-    
-    echo "Successfully deployed core service ${serviceName} to ${namespace}"
-}
 
-def deployService(serviceName, servicePort, namespace) {
-    echo "Deploying ${serviceName} to ${namespace}..."
-    
-    // Deploy to Kubernetes using registry image
-    sh """
-        kubectl --kubeconfig="\$KCFG" set image deployment/${serviceName} ${serviceName}=${REGISTRY}/${serviceName}:${IMAGE_TAG} -n ${namespace} || \
-        kubectl --kubeconfig="\$KCFG" create deployment ${serviceName} --image=${REGISTRY}/${serviceName}:${IMAGE_TAG} -n ${namespace}
-    """
-    
-    // Expose service
-    sh "kubectl --kubeconfig=\"\$KCFG\" expose deployment ${serviceName} --port=${servicePort} --target-port=${servicePort} -n ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig=\"\$KCFG\" apply -f -"
-    
     echo "Successfully deployed ${serviceName} to ${namespace}"
 }
 
