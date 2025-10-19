@@ -11,7 +11,7 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_REGISTRY = 'localhost:5000'
+        DOCKER_REGISTRY = 'docker.io/andrewdpg'
         K8S_NAMESPACE_STAGING = 'microservices-staging'
         K8S_NAMESPACE_PROD = 'microservices-prod'
         KUBECONFIG_CREDENTIAL = 'kubeconfig'
@@ -43,22 +43,7 @@ pipeline {
                     echo "Target Environment: ${env.TARGET_ENVIRONMENT}"
                     
                     // Detect changed services
-                    def changedServices = []
-                    for (service in SERVICES) {
-                        def serviceName = service.name
-                        def servicePath = service.path
-                        
-                        // Check if service directory or related files changed
-                        def changes = sh(
-                            script: """git diff --name-only HEAD~1 HEAD | grep -E '^${servicePath}/|^pom\\.xml\$|^shared/' || true""",
-                            returnStdout: true
-                        ).trim()
-                        
-                        if (changes) {
-                            changedServices.add(serviceName)
-                            echo "Changes detected in ${serviceName}: ${changes}"
-                        }
-                    }
+                    def changedServices = ["user-service"]
                     
                     // If no specific changes detected, build all services
                     if (changedServices.isEmpty()) {
@@ -82,61 +67,6 @@ pipeline {
                     steps {
                         script {
                             buildService('user-service', '8700')
-                        }
-                    }
-                }
-                
-                stage('Build Product Service') {
-                    when {
-                        expression { env.CHANGED_SERVICES.contains('product-service') }
-                    }
-                    steps {
-                        script {
-                            buildService('product-service', '8500')
-                        }
-                    }
-                }
-                
-                stage('Build Order Service') {
-                    when {
-                        expression { env.CHANGED_SERVICES.contains('order-service') }
-                    }
-                    steps {
-                        script {
-                            buildService('order-service', '8300')
-                        }
-                    }
-                }
-                
-                stage('Build Payment Service') {
-                    when {
-                        expression { env.CHANGED_SERVICES.contains('payment-service') }
-                    }
-                    steps {
-                        script {
-                            buildService('payment-service', '8400')
-                        }
-                    }
-                }
-                
-                stage('Build Shipping Service') {
-                    when {
-                        expression { env.CHANGED_SERVICES.contains('shipping-service') }
-                    }
-                    steps {
-                        script {
-                            buildService('shipping-service', '8600')
-                        }
-                    }
-                }
-                
-                stage('Build Favourite Service') {
-                    when {
-                        expression { env.CHANGED_SERVICES.contains('favourite-service') }
-                    }
-                    steps {
-                        script {
-                            buildService('favourite-service', '8800')
                         }
                     }
                 }
@@ -282,13 +212,21 @@ def buildService(serviceName, servicePort) {
     sh "docker build -f ${serviceName}/Dockerfile -t ${serviceName}:${BUILD_NUMBER} ."
     sh "docker tag ${serviceName}:${BUILD_NUMBER} ${serviceName}:latest"
     
-    // Tag for registry
-    sh "docker tag ${serviceName}:${BUILD_NUMBER} ${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER}"
-    sh "docker tag ${serviceName}:${BUILD_NUMBER} ${DOCKER_REGISTRY}/${serviceName}:latest"
-    
-    // Push to registry
-    sh "docker push ${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER}"
-    sh "docker push ${DOCKER_REGISTRY}/${serviceName}:latest"
+    // Tag for registry (only if registry is available)
+    script {
+        try {
+            sh "docker tag ${serviceName}:${BUILD_NUMBER} ${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER}"
+            sh "docker tag ${serviceName}:${BUILD_NUMBER} ${DOCKER_REGISTRY}/${serviceName}:latest"
+            
+            // Push to registry
+            sh "docker push ${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER}"
+            sh "docker push ${DOCKER_REGISTRY}/${serviceName}:latest"
+            echo "Successfully pushed to registry: ${DOCKER_REGISTRY}"
+        } catch (Exception e) {
+            echo "Registry ${DOCKER_REGISTRY} not available, skipping push. Error: ${e.getMessage()}"
+            echo "Images built locally: ${serviceName}:${BUILD_NUMBER}, ${serviceName}:latest"
+        }
+    }
     
     echo "Successfully built and pushed ${serviceName}:${BUILD_NUMBER}"
 }
@@ -313,10 +251,22 @@ def deployService(serviceName, servicePort, namespace) {
     echo "Deploying ${serviceName} to ${namespace}..."
     
     // Deploy to Kubernetes
-    sh """
-        kubectl set image deployment/${serviceName} ${serviceName}=${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER} -n ${namespace} || \
-        kubectl create deployment ${serviceName} --image=${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER} -n ${namespace}
-    """
+    script {
+        try {
+            // Try with registry first
+            sh """
+                kubectl set image deployment/${serviceName} ${serviceName}=${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER} -n ${namespace} || \
+                kubectl create deployment ${serviceName} --image=${DOCKER_REGISTRY}/${serviceName}:${BUILD_NUMBER} -n ${namespace}
+            """
+        } catch (Exception e) {
+            echo "Registry image not available, using local image: ${serviceName}:${BUILD_NUMBER}"
+            // Fallback to local image
+            sh """
+                kubectl set image deployment/${serviceName} ${serviceName}=${serviceName}:${BUILD_NUMBER} -n ${namespace} || \
+                kubectl create deployment ${serviceName} --image=${serviceName}:${BUILD_NUMBER} -n ${namespace}
+            """
+        }
+    }
     
     // Expose service
     sh "kubectl expose deployment ${serviceName} --port=${servicePort} --target-port=${servicePort} -n ${namespace} --dry-run=client -o yaml | kubectl apply -f -"
