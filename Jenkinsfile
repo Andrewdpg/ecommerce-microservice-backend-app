@@ -375,7 +375,7 @@ def deployCoreServicesToEnvironment(environment, namespace) {
 
     // Apply the ConfigMap
     sh """
-        sed -e "s|\\${NAMESPACE}|${namespace}|g" \
+        sed -e "s|\\\${NAMESPACE}|${namespace}|g" \
             k8s/base/configmap.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
     """
     
