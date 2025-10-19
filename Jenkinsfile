@@ -398,7 +398,7 @@ def deployToEnvironment(environment, namespace) {
     
     // Aplicar el ConfigMap
     sh """
-        sed -e "s|\\${NAMESPACE}|${namespace}|g" \
+        sed -e "s|\\\${NAMESPACE}|${namespace}|g" \
             k8s/base/configmap.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
     """
     
@@ -427,9 +427,9 @@ def deployService(serviceName, servicePort, namespace) {
 
     // Apply Kubernetes manifests using sed for variable substitution
     sh """
-        sed -e "s|\\${REGISTRY}|${REGISTRY}|g" \
-            -e "s|\\${NAMESPACE}|${namespace}|g" \
-            -e "s|\\${IMAGE_TAG}|${IMAGE_TAG}|g" \
+        sed -e "s|\\\${REGISTRY}|${REGISTRY}|g" \
+            -e "s|\\\${NAMESPACE}|${namespace}|g" \
+            -e "s|\\\${IMAGE_TAG}|${IMAGE_TAG}|g" \
             k8s/base/${serviceName}.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
     """
 
