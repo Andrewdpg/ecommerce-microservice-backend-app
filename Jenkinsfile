@@ -72,21 +72,6 @@ pipeline {
             }
         }
 
-        stage('ttttt') {
-            when {
-                equals expected: 'production', actual: env.TARGET_ENVIRONMENT
-            }
-            steps {
-                unstash 'workspace'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
-                    script {
-                        echo "Deploying to production environment..."
-                        deployToEnvironment('production', K8S_NAMESPACE_PROD)
-                    }
-                }
-            }
-        }
-        
         stage('Build & Test Core Services') {
             parallel {
                 stage('Build Service Discovery') {
