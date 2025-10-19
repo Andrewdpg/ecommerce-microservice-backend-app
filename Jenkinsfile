@@ -356,9 +356,6 @@ def deployService(serviceName, servicePort, namespace) {
     // Expose service
     sh "kubectl --kubeconfig=\"\$KCFG\" expose deployment ${serviceName} --port=${servicePort} --target-port=${servicePort} -n ${namespace} --dry-run=client -o yaml | kubectl --kubeconfig=\"\$KCFG\" apply -f -"
     
-    // Wait for deployment to be ready
-    sh "kubectl --kubeconfig=\"\$KCFG\" rollout status deployment/${serviceName} -n ${namespace} --timeout=300s"
-    
     echo "Successfully deployed ${serviceName} to ${namespace}"
 }
 
