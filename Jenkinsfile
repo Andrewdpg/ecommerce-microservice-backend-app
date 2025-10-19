@@ -72,6 +72,18 @@ pipeline {
             }
         }
 
+        stage('Deploy Core Services to Production') {
+            steps {
+                unstash 'workspace'
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        echo "Deploying core services to production environment..."
+                        deployCoreServicesToEnvironment('production', K8S_NAMESPACE_PROD)
+                    }
+                }
+            }
+        }
+
         stage('Build & Test Core Services') {
             parallel {
                 stage('Build Service Discovery') {
@@ -198,20 +210,7 @@ pipeline {
             }
         }
         
-        stage('Deploy Core Services to Production') {
-            when {
-                equals expected: 'production', actual: env.TARGET_ENVIRONMENT
-            }
-            steps {
-                unstash 'workspace'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
-                    script {
-                        echo "Deploying core services to production environment..."
-                        deployCoreServicesToEnvironment('production', K8S_NAMESPACE_PROD)
-                    }
-                }
-            }
-        }
+        
         
         stage('Deploy to Production') {
             when {
@@ -384,14 +383,14 @@ def deployCoreServicesToEnvironment(environment, namespace) {
     deployService('zipkin', '9411', namespace)
     sh "sleep 30" // Wait for zipkin to be ready
     
-    deployService('service-discovery', '8761', namespace)
-    sh "sleep 60" // Wait for eureka to be ready
+    //deployService('service-discovery', '8761', namespace)
+    //sh "sleep 60" // Wait for eureka to be ready
     
-    deployService('cloud-config', '9296', namespace)
-    sh "sleep 30" // Wait for cloud-config to be ready
+    //deployService('cloud-config', '9296', namespace)
+    //sh "sleep 30" // Wait for cloud-config to be ready
     
-    deployService('api-gateway', '8080', namespace)
-    sh "sleep 30" // Wait for api-gateway to be ready
+    //deployService('api-gateway', '8080', namespace)
+//    sh "sleep 30" // Wait for api-gateway to be ready
 }
 
 def deployToEnvironment(environment, namespace) {
@@ -429,7 +428,7 @@ def deployService(serviceName, servicePort, namespace) {
     // Apply Kubernetes manifests using sed for variable substitution
     sh """
         sed -e "s|\\${REGISTRY}|${REGISTRY}|g" \
-            -e "s|\\${namespace}|${NAMESPACE}|g" \
+            -e "s|\\${NAMESPACE}|${namespace}|g" \
             -e "s|\\${IMAGE_TAG}|${IMAGE_TAG}|g" \
             k8s/base/${serviceName}.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
     """
