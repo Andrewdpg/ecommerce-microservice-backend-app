@@ -7,9 +7,9 @@ nodes:
 - role: control-plane
   image: kindest/node:v1.34.0
   extraPortMappings:
-  # User Service - Port 8700
+  # Api Gateway - Port 8080
   - containerPort: 30080
-    hostPort: 8700
+    hostPort: 8080
     listenAddress: "0.0.0.0"
     protocol: TCP
   # Product Service - Port 8500
@@ -22,33 +22,8 @@ nodes:
     hostPort: 8300
     listenAddress: "0.0.0.0"
     protocol: TCP
-  # Payment Service - Port 8400
-  - containerPort: 30083
-    hostPort: 8400
-    listenAddress: "0.0.0.0"
-    protocol: TCP
-  # Shipping Service - Port 8600
-  - containerPort: 30084
-    hostPort: 8600
-    listenAddress: "0.0.0.0"
-    protocol: TCP
-  # Favourite Service - Port 8800
-  - containerPort: 30085
-    hostPort: 8800
-    listenAddress: "0.0.0.0"
-    protocol: TCP
-  # Eureka Service Discovery - Port 8761
-  - containerPort: 30086
-    hostPort: 8761
-    listenAddress: "0.0.0.0"
-    protocol: TCP
   # Zipkin - Port 9411
   - containerPort: 30087
     hostPort: 9411
-    listenAddress: "0.0.0.0"
-    protocol: TCP
-  # Cloud Config - Port 9296
-  - containerPort: 30088
-    hostPort: 9296
     listenAddress: "0.0.0.0"
     protocol: TCP

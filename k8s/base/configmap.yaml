@@ -10,6 +10,9 @@ data:
   # Service Discovery
   EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: "http://service-discovery.${NAMESPACE}.svc.cluster.local:8761/eureka/"
   EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery.${NAMESPACE}.svc.cluster.local:8761/eureka/"
+  
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+  EUREKA_INSTANCE_HOSTNAME: "${spring.application.name}.${NAMESPACE}.svc.cluster.local"
 
   # Cloud Config
   SPRING_CLOUD_CONFIG_URI: "http://cloud-config.${NAMESPACE}.svc.cluster.local:9296"
@@ -22,4 +25,5 @@ data:
   FAVOURITE_SERVICE_HOST: "http://favourite-service.${NAMESPACE}.svc.cluster.local:8800"
   SHIPPING_SERVICE_HOST: "http://shipping-service.${NAMESPACE}.svc.cluster.local:8600"
   PAYMENT_SERVICE_HOST: "http://payment-service.${NAMESPACE}.svc.cluster.local:8400"
+  PROXY_CLIENT_HOST: "http://proxy-client.${NAMESPACE}.svc.cluster.local:8900"
   SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config.${NAMESPACE}.svc.cluster.local:9296/"

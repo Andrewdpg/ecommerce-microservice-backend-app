@@ -9,6 +9,7 @@ spec:
   ports:
     - port: 9411
       targetPort: 9411
+      nodePort: 30087
   type: NodePort
 ---
 apiVersion: apps/v1
