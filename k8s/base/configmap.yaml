@@ -9,6 +9,7 @@ data:
 
   # Service Discovery
   EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: "http://service-discovery.${NAMESPACE}.svc.cluster.local:8761/eureka/"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery.${NAMESPACE}.svc.cluster.local:8761/eureka/"
 
   # Cloud Config
   SPRING_CLOUD_CONFIG_URI: "http://cloud-config.${NAMESPACE}.svc.cluster.local:9296"
