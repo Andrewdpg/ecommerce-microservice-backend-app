@@ -271,6 +271,7 @@ pipeline {
                     runPerformanceTests()
                 }
             }
+        }
 
         stage('Deploy Core Services to Production') {
             when {
