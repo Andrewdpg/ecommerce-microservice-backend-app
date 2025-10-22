@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy-client
+  namespace: ${NAMESPACE}
+  labels:
+    app: proxy-client
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proxy-client
+  template:
+    metadata:
+      labels:
+        app: proxy-client
+        version: v1
+    spec:
+      containers:
+      - name: proxy-client
+        image: ${REGISTRY}/proxy-client:${IMAGE_TAG}
+        ports:
+        - containerPort: 8900
+        envFrom:
+          - configMapRef:
+              name: micro-config
+        resources:
+          requests:
+            memory: "384Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /proxy-client/actuator/health
+            port: 8700
+          initialDelaySeconds: 120
+          periodSeconds: 15
+          timeoutSeconds: 3
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /proxy-client/actuator/health
+            port: 8700
+          initialDelaySeconds: 150
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy-client
+  namespace: ${NAMESPACE}
+  labels:
+    app: proxy-client
+spec:
+  selector:
+    app: proxy-client
+  ports:
+  - port: 8700
+    targetPort: 8700
+    protocol: TCP
+  type: ClusterIP
