@@ -9,5 +9,5 @@ data:
   EUREKA_CLIENT_REGION: "default"
   EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT: "myzone"
   EUREKA_CLIENT_SERVICEURL_MYZONE: "http://service-discovery-container:8761/eureka"
-  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://service-discovery-container:8761/eureka/"
+  EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE: "http://service-discovery-container:8761/eureka/"
   SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config-container:9296/"

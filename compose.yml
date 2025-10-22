@@ -56,7 +56,7 @@ services:
       - EUREKA_CLIENT_REGION=default
       - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
       - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
       - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_HOSTNAME=cloud-config-container
@@ -90,7 +90,7 @@ services:
       - EUREKA_CLIENT_REGION=default
       - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
       - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
       - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_HOSTNAME=api-gateway-container
@@ -125,7 +125,7 @@ services:
       - EUREKA_CLIENT_REGION=default
       - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
       - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
       - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
       - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
@@ -161,7 +161,7 @@ services:
       - EUREKA_CLIENT_REGION=default
       - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
       - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
       - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
       - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
@@ -197,7 +197,7 @@ services:
       - EUREKA_CLIENT_REGION=default
       - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
       - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
       - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
       - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
@@ -233,7 +233,7 @@ services:
       - EUREKA_CLIENT_REGION=default
       - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
       - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
       - SPRING_ZIPKIN_BASE_URL=http://zipkin-container:9411
       - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
       - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
@@ -271,7 +271,7 @@ services:
       - EUREKA_CLIENT_REGION=default
       - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
       - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
       - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
       - EUREKA_INSTANCE_HOSTNAME=shipping-service-container
@@ -306,7 +306,7 @@ services:
       - EUREKA_CLIENT_REGION=default
       - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
       - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
       - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
       - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
@@ -342,7 +342,7 @@ services:
       - EUREKA_CLIENT_REGION=default
       - EUREKA_CLIENT_AVAILABILITYZONES_DEFAULT=myzone
       - EUREKA_CLIENT_SERVICEURL_MYZONE=http://service-discovery-container:8761/eureka
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-discovery-container:8761/eureka/
       - SPRING_CONFIG_IMPORT=optional:configserver:http://cloud-config-container:9296/
       - JAVA_OPTS=-Xmx512m -Xms256m -XX:+UseG1GC -XX:+UseContainerSupport
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
