@@ -3,9 +3,9 @@ def SERVICES = [
     [name: 'product-service', port: '8500', path: 'product-service'],
     [name: 'order-service', port: '8300', path: 'order-service'],
     [name: 'shipping-service', port: '8600', path: 'shipping-service'],
-    [name: 'service-discovery', port: '8761', path: 'service-discovery'],
+    [name: 'service-discovery', port: '8761', path: 'service-discovery', stagePort: 30187, prodPort: 30087],
     [name: 'proxy-client', port: '8900', path: 'proxy-client'],
-    [name: 'api-gateway', port: '8080', path: 'api-gateway']
+    [name: 'api-gateway', port: '8080', path: 'api-gateway', stagePort: 30180, prodPort: 30080]
 ]
 
 pipeline {
@@ -259,6 +259,19 @@ pipeline {
             }
         }
 
+        stage('Performance Tests') {
+            when {
+                anyOf {
+                    equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
+                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+                }
+            }
+            steps {
+                script {
+                    runPerformanceTests()
+                }
+            }
+
         stage('Deploy Core Services to Production') {
             when {
                 equals expected: 'production', actual: env.TARGET_ENVIRONMENT
@@ -379,7 +392,7 @@ def deployCoreServicesToEnvironment(environment, namespace) {
     """
     
     // Deploy core services in order with waits
-    deployService('zipkin', '9411', namespace)
+    deployService('zipkin', '9411', namespace, 30087)
     
     // Define services locally
     def services = [
@@ -391,8 +404,9 @@ def deployCoreServicesToEnvironment(environment, namespace) {
     def changedServices = env.CHANGED_SERVICES.split(',')
     for (serviceName in changedServices) {
         def service = services.find { it.name == serviceName }
+        def nodePort = environment.equals('staging') ? service.stagePort : service.prodPort
         if (service) {
-            deployService(serviceName, service.port, namespace)
+            deployService(serviceName, service.port, namespace, nodePort)
         }
     }
 }
@@ -419,13 +433,14 @@ def deployToEnvironment(environment, namespace) {
     def changedServices = env.CHANGED_SERVICES.split(',')
     for (serviceName in changedServices) {
         def service = services.find { it.name == serviceName }
+        def nodePort = environment.equals('staging') ? service.stagePort : service.prodPort
         if (service) {
-            deployService(serviceName, service.port, namespace)
+            deployService(serviceName, service.port, namespace, nodePort)
         }
     }
 }
 
-def deployService(serviceName, servicePort, namespace) {
+def deployService(serviceName, servicePort, namespace, nodePort) {
     echo "Deploying ${serviceName} to ${namespace}..."
 
     // Apply Kubernetes manifests using sed for variable substitution
@@ -433,37 +448,338 @@ def deployService(serviceName, servicePort, namespace) {
         sed -e "s|\\\${REGISTRY}|${REGISTRY}|g" \
             -e "s|\\\${NAMESPACE}|${namespace}|g" \
             -e "s|\\\${IMAGE_TAG}|${IMAGE_TAG}|g" \
+            -e "s|\\\${NODE_PORT}|${nodePort}|g" \
             k8s/base/${serviceName}.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
     """
 
     // Wait for the service to be ready with kubectl wait
     sh """
-        kubectl --kubeconfig="\$KCFG" wait --for=condition=available --timeout=600s deployment/${serviceName} -n ${namespace}
+        kubectl --kubeconfig="\$KCFG" rollout status deployment/${serviceName} -n ${namespace} --timeout=600s
     """
 
     echo "Successfully deployed ${serviceName} to ${namespace}"
 }
 
 def runIntegrationTests() {
-    echo "Running integration tests..."
+    echo "Running integration tests on staging environment..."
     
-    // Wait for all services to be ready
-    sh "sleep 30"
+    // Get staging namespace (always use staging for tests)
+    def namespace = K8S_NAMESPACE_STAGING
     
-    // Test service connectivity based on environment
-    def namespace = env.TARGET_ENVIRONMENT == 'staging' ? K8S_NAMESPACE_STAGING : K8S_NAMESPACE_PROD
+    // Verify all services are running
     sh """
         kubectl --kubeconfig="\$KCFG" get pods -n ${namespace}
         kubectl --kubeconfig="\$KCFG" get svc -n ${namespace}
     """
     
-    // Run integration tests (you can add specific test commands here)
-    echo "Integration tests completed"
+    // Get API Gateway URL for kind cluster
+    def apiGatewayUrl = "ci-control-plane:30080"
+    
+    // Run integration tests using curl and jq
+    sh """
+        # Test 1: User Service - Create and retrieve user
+        echo "Test 1: User Service Integration"
+        USER_RESPONSE=\$(curl -s -X POST "http://${apiGatewayUrl}/user-service/api/users" \\
+            -H "Content-Type: application/json" \\
+            -d '{ userId: 4, "firstName": "María", "lastName": "García", "imageUrl": "https://example.com/maria.jpg", "email": "maria.garcia@example.com", "phone": "+573007654321", "credential": {   "username": "maria.garcia",   "password": "SecurePass123!",   "roleBasedAuthority": "ROLE_USER",   "isEnabled": true,   "isAccountNonExpired": true,   "isAccountNonLocked": true,   "isCredentialsNonExpired": true }}')
+        echo "User created: \$USER_RESPONSE"
+        
+        USER_ID=\$(echo \$USER_RESPONSE | jq -r '.userId')
+        if [ "\$USER_ID" != "null" ] && [ "\$USER_ID" != "" ]; then
+            echo "✓ User creation successful, ID: \$USER_ID"
+        else
+            echo "✗ User creation failed"
+            exit 1
+        fi
+        
+        # Test 2: Product Service - Create and retrieve product
+        echo "Test 2: Product Service Integration"
+        PRODUCT_RESPONSE=\$(curl -s -X POST "http://${apiGatewayUrl}/product-service/api/products" \\
+            -H "Content-Type: application/json" \\
+            -d '{"productId": 3,"productTitle": "Test Product","imageUrl": "test.com","sku": "TEST001","priceUnit": 99.99,"quantity": 10,"category": {    "categoryId": 3,    "categoryTitle": "Game",    "imageUrl": null}}')
+        echo "Product created: \$PRODUCT_RESPONSE"
+        
+        PRODUCT_ID=\$(echo \$PRODUCT_RESPONSE | jq -r '.productId')
+        if [ "\$PRODUCT_ID" != "null" ] && [ "\$PRODUCT_ID" != "" ]; then
+            echo "✓ Product creation successful, ID: \$PRODUCT_ID"
+        else
+            echo "✗ Product creation failed"
+            exit 1
+        fi
+        
+        # Test 3: Order Service - Create order with user and product
+        echo "Test 3: Order Service Integration"
+        ORDER_RESPONSE=\$(curl -s -X POST "http://${apiGatewayUrl}/order-service/api/orders" \\
+            -H "Content-Type: application/json" \\
+            -d '{ "orderId": 3, "orderDesc": "Test Order", "orderFee": 99.99, "cart": {     "cartId":3 }}')
+        echo "Order created: \$ORDER_RESPONSE"
+        
+        ORDER_ID=\$(echo \$ORDER_RESPONSE | jq -r '.orderId')
+        if [ "\$ORDER_ID" != "null" ] && [ "\$ORDER_ID" != "" ]; then
+            echo "✓ Order creation successful, ID: \$ORDER_ID"
+        else
+            echo "✗ Order creation failed"
+            exit 1
+        fi
+        
+        # Test 4: Shipping Service - Create order item
+        echo "Test 4: Shipping Service Integration"
+        ORDER_ITEM_RESPONSE=\$(curl -s -X POST "http://${apiGatewayUrl}/shipping-service/api/shippings" \\
+            -H "Content-Type: application/json" \\
+            -d '{"orderId": 2,"productId": 2,"orderedQuantity": 2}')
+        echo "Order item created: \$ORDER_ITEM_RESPONSE"
+        
+        if [ "\$(echo \$ORDER_ITEM_RESPONSE | jq -r '.orderId')" != "null" ]; then
+            echo "✓ Order item creation successful"
+        else
+            echo "✗ Order item creation failed"
+            exit 1
+        fi
+        
+        # Test 5: API Gateway - Test routing to all services
+        echo "Test 6: API Gateway Integration"
+        GATEWAY_USER_RESPONSE=\$(curl -s "http://${apiGatewayUrl}/user-service/api/users")
+        GATEWAY_PRODUCT_RESPONSE=\$(curl -s "http://${apiGatewayUrl}/product-service/api/products")
+        
+        if [ "\$GATEWAY_USER_RESPONSE" != "" ] && [ "\$GATEWAY_PRODUCT_RESPONSE" != "" ]; then
+            echo "✓ API Gateway routing successful"
+        else
+            echo "✗ API Gateway routing failed"
+            exit 1
+        fi
+        
+        echo "All integration tests passed successfully!"
+    """
+    
+    echo "Integration tests completed successfully"
 }
 
 def runE2ETests() {
-    echo "Running end-to-end tests..."
+    echo "Running end-to-end tests on staging environment..."
     
-    // Run E2E tests (you can add specific test commands here)
-    echo "E2E tests completed"
+    // Get staging namespace (always use staging for tests)
+    def namespace = K8S_NAMESPACE_STAGING
+    
+    // Get API Gateway URL for kind cluster
+    def apiGatewayUrl = "ci-control-plane:30080"
+    
+    // Run E2E tests
+    sh """
+        # E2E Test 1: Complete User Registration and Profile Update Flow
+        echo "E2E Test 1: User Registration and Profile Update Flow"
+        
+        # Create user
+        USER_RESPONSE=\$(curl -s -X POST "http://${apiGatewayUrl}/user-service/api/users" \\
+            -H "Content-Type: application/json" \\
+            -d '{ "userId": 4, "firstName": "María", "lastName": "García", "imageUrl": "https://example.com/maria.jpg", "email": "maria.garcia@example.com", "phone": "+573007654321", "credential": {   "username": "maria.garcia",   "password": "SecurePass123!",   "roleBasedAuthority": "ROLE_USER",   "isEnabled": true,   "isAccountNonExpired": true,   "isAccountNonLocked": true,   "isCredentialsNonExpired": true }}')
+        USER_ID=\$(echo \$USER_RESPONSE | jq -r '.userId')
+        
+        # Update user profile
+        UPDATE_RESPONSE=\$(curl -s -X PUT "http://${apiGatewayUrl}/user-service/api/users" \\
+            -H "Content-Type: application/json" \\
+            -d '{ "userId": 4, "firstName": "María", "lastName": "Smith", "imageUrl": "https://example.com/maria.jpg", "email": "maria.garcia@example.com", "phone": "+573007654321", "credential": {   "username": "maria.garcia",   "password": "SecurePass123!",   "roleBasedAuthority": "ROLE_USER",   "isEnabled": true,   "isAccountNonExpired": true,   "isAccountNonLocked": true,   "isCredentialsNonExpired": true }}')
+        
+        if [ "\$(echo \$UPDATE_RESPONSE | jq -r '.lastName')" = "Smith" ]; then
+            echo "✓ E2E Test 1 passed: User registration and update flow"
+        else
+            echo "✗ E2E Test 1 failed"
+            exit 1
+        fi
+        
+        # E2E Test 2: Complete Product Catalog and Search Flow
+        echo "E2E Test 2: Product Catalog and Search Flow"
+        
+        # Create multiple products
+        PRODUCT1=\$(curl -s -X POST "http://${apiGatewayUrl}/product-service/api/products" \\
+            -H "Content-Type: application/json" \\
+            -d '{"productId": 4,"productTitle": "Test Product","imageUrl": "test.com","sku": "TEST001","priceUnit": 99.99,"quantity": 10,"category": {    "categoryId": 3,    "categoryTitle": "Game",    "imageUrl": null}}')
+        PRODUCT2=\$(curl -s -X POST "http://${apiGatewayUrl}/product-service/api/products" \\
+            -H "Content-Type: application/json" \\
+            -d '{"productId": 5, "productTitle": "Test Product","imageUrl": "test.com","sku": "TEST001","priceUnit": 99.99,"quantity": 10,"category": {    "categoryId": 3,    "categoryTitle": "Game",    "imageUrl": null}}')
+        
+        # Get all products
+        ALL_PRODUCTS=\$(curl -s "http://${apiGatewayUrl}/product-service/api/products")
+        PRODUCT_COUNT=\$(echo \$ALL_PRODUCTS | jq '.collection | length')
+        
+        if [ "\$PRODUCT_COUNT" -ge 2 ]; then
+            echo "✓ E2E Test 2 passed: Product catalog flow"
+        else
+            echo "✗ E2E Test 2 failed"
+            exit 1
+        fi
+        
+        # E2E Test 3: Complete Shopping Cart and Order Flow
+        echo "E2E Test 3: Shopping Cart and Order Flow"
+        
+        # Create order
+        ORDER_RESPONSE=\$(curl -s -X POST "http://${apiGatewayUrl}/order-service/api/orders" \\
+            -H "Content-Type: application/json" \\
+            -d '{"orderId": 3,"orderDesc": "Complete shopping order","orderFee": 1029.98,"cart": {     "cartId":3 }}')
+        ORDER_ID=\$(echo \$ORDER_RESPONSE | jq -r '.orderId')
+        
+        # Add items to order
+        ITEM1=\$(curl -s -X POST "http://${apiGatewayUrl}/shipping-service/api/shippings" \\
+            -H "Content-Type: application/json" \\
+            -d '{"orderId":3,"productId":4,"orderedQuantity":1}')
+        ITEM2=\$(curl -s -X POST "http://${apiGatewayUrl}/shipping-service/api/shippings" \\
+            -H "Content-Type: application/json" \\
+            -d '{"orderId":3,"productId":5,"orderedQuantity":1}')
+        
+        # Verify order items
+        ORDER_ITEMS=\$(curl -s "http://${apiGatewayUrl}/shipping-service/api/shippings")
+        ITEM_COUNT=\$(echo \$ORDER_ITEMS | jq '.collection | length')
+        
+        if [ "\$ITEM_COUNT" -ge 2 ]; then
+            echo "✓ E2E Test 3 passed: Shopping cart and order flow"
+        else
+            echo "✗ E2E Test 3 failed"
+            exit 1
+        fi
+        
+        # E2E Test 4: Complete Order Management Flow
+        echo "E2E Test 4: Order Management Flow"
+        
+        # Get order details
+        ORDER_DETAILS=\$(curl -s "http://${apiGatewayUrl}/order-service/api/orders/3")
+        ORDER_STATUS=\$(echo \$ORDER_DETAILS | jq -r '.orderId')
+        
+        # E2E Test 5: Complete System Health and Monitoring Flow
+        echo "E2E Test 5: System Health and Monitoring Flow"
+        
+        # Test all service health endpoints
+        USER_HEALTH=\$(curl -s "http://${apiGatewayUrl}/user-service/actuator/health" || echo "unavailable")
+        PRODUCT_HEALTH=\$(curl -s "http://${apiGatewayUrl}/product-service/actuator/health" || echo "unavailable")
+        ORDER_HEALTH=\$(curl -s "http://${apiGatewayUrl}/order-service/actuator/health" || echo "unavailable")
+        SHIPPING_HEALTH=\$(curl -s "http://${apiGatewayUrl}/shipping-service/actuator/health" || echo "unavailable")
+        
+        HEALTH_COUNT=0
+        [ "\$USER_HEALTH" != "unavailable" ] && HEALTH_COUNT=\$((HEALTH_COUNT + 1))
+        [ "\$PRODUCT_HEALTH" != "unavailable" ] && HEALTH_COUNT=\$((HEALTH_COUNT + 1))
+        [ "\$ORDER_HEALTH" != "unavailable" ] && HEALTH_COUNT=\$((HEALTH_COUNT + 1))
+        [ "\$SHIPPING_HEALTH" != "unavailable" ] && HEALTH_COUNT=\$((HEALTH_COUNT + 1))
+        
+        if [ "\$HEALTH_COUNT" -ge 3 ]; then
+            echo "✓ E2E Test 5 passed: System health monitoring"
+        else
+            echo "✗ E2E Test 5 failed"
+            exit 1
+        fi
+        
+        echo "All E2E tests passed successfully!"
+    """
+    
+    echo "E2E tests completed successfully"
+}
+
+def runPerformanceTests() {
+    echo "Running performance tests with Locust..."
+    
+    // Get staging namespace (always use staging for tests)
+    def namespace = K8S_NAMESPACE_STAGING
+    
+    // Get API Gateway URL for kind cluster
+    def apiGatewayUrl = "ci-control-plane:30080"
+    
+    // Create Locust test file
+    writeFile file: 'locustfile.py', text: '''
+import time
+import random
+from locust import HttpUser, task, between
+
+class EcommerceUser(HttpUser):
+    wait_time = between(1, 3)
+    
+    def on_start(self):
+        """Called when a user starts"""
+        self.user_id = None
+        self.product_ids = []
+        self.order_id = None
+        
+    @task(3)
+    def view_products(self):
+        """View product catalog"""
+        response = self.client.get("/product-service/api/products")
+        if response.status_code == 200:
+            products = response.json()
+            if 'collection' in products and products['collection']:
+                self.product_ids = [p['productId'] for p in products['collection'][:5]]
+    
+    @task(2)
+    def create_user(self):
+        """Create a new user"""
+        user_data = { "userId": 4, "firstName": "María", "lastName": "García", "imageUrl": "https://example.com/maria.jpg", "email": "maria.garcia@example.com", "phone": "+573007654321", "credential": {   "username": "maria.garcia",   "password": "SecurePass123!",   "roleBasedAuthority": "ROLE_USER",   "isEnabled": true,   "isAccountNonExpired": true,   "isAccountNonLocked": true,   "isCredentialsNonExpired": true }}
+        response = self.client.post("/user-service/api/users", json=user_data)
+        if response.status_code == 200:
+            self.user_id = response.json().get('userId')
+    
+    @task(2)
+    def get_user(self):
+        """Get user details"""
+        if self.user_id:
+            self.client.get(f"/user-service/api/users/{self.user_id}")
+    
+    @task(1)
+    def create_order(self):
+        """Create an order"""
+        if self.user_id:
+            order_data = {
+                "orderId": 3,
+                "orderDesc": "Complete shopping order",
+                "orderFee": 1029.98,
+                "cart": {
+                    "cartId": 3
+                }
+            }
+            response = self.client.post("/order-service/api/orders", json=order_data)
+            if response.status_code == 200:
+                self.order_id = response.json().get('orderId')
+    
+    @task(1)
+    def add_order_item(self):
+        """Add item to order"""
+        if self.order_id and self.product_ids:
+            item_data = {
+                "orderId": 3,
+                "productId": 4,
+                "orderedQuantity": 1
+            }
+            self.client.post("/shipping-service/api/shippings", json=item_data)
+    
+    @task(1)
+    def view_orders(self):
+        """View all orders"""
+        self.client.get("/order-service/api/orders")
+    
+    @task(1)
+    def view_order_items(self):
+        """View order items"""
+        self.client.get("/shipping-service/api/shippings")
+'''
+    
+    // Run Locust performance tests
+    sh """
+        # Install Locust if not available
+        pip install locust || echo "Locust already installed"
+        
+        # Run Locust tests
+        locust -f locustfile.py --host=http://${apiGatewayUrl} \\
+            --users=50 --spawn-rate=10 --run-time=300s \\
+            --html=performance_report.html --csv=performance_data \\
+            --headless
+        
+        # Generate performance summary
+        echo "Performance Test Summary:"
+        echo "========================"
+        if [ -f performance_data_stats.csv ]; then
+            echo "Total Requests: \$(tail -n 1 performance_data_stats.csv | cut -d',' -f2)"
+            echo "Failed Requests: \$(tail -n 1 performance_data_stats.csv | cut -d',' -f3)"
+            echo "Average Response Time: \$(tail -n 1 performance_data_stats.csv | cut -d',' -f4)ms"
+            echo "Requests per Second: \$(tail -n 1 performance_data_stats.csv | cut -d',' -f5)"
+        fi
+    """
+    
+    // Archive performance results
+    archiveArtifacts artifacts: 'performance_report.html,performance_data*.csv', fingerprint: true
+    
+    echo "Performance tests completed"
 }
