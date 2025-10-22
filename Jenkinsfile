@@ -4,7 +4,6 @@ def SERVICES = [
     [name: 'order-service', port: '8300', path: 'order-service'],
     [name: 'shipping-service', port: '8600', path: 'shipping-service'],
     [name: 'service-discovery', port: '8761', path: 'service-discovery'],
-    [name: 'cloud-config', port: '9296', path: 'cloud-config'],
     [name: 'api-gateway', port: '8080', path: 'api-gateway']
 ]
 
@@ -52,7 +51,23 @@ pipeline {
                     echo "IMAGE_TAG: ${env.IMAGE_TAG}"
                     
                     // Detect changed services
-                    def changedServices = ["user-service", "service-discovery", "cloud-config", "api-gateway"]
+                    def changedServices = []
+                    for (service in SERVICES) {
+                        def serviceName = service.name
+                        def servicePath = service.path
+                        
+                        // Check if service directory or related files changed
+                        def changes = sh(
+                            script: """git diff --name-only HEAD~1 HEAD | grep -E '^${servicePath}/|^pom\\.xml\$|^shared/' || true""",
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (changes) {
+                            changedServices.add(serviceName)
+                            echo "Changes detected in ${serviceName}: ${changes}"
+                        }
+                    }
+                    
                     
                     // If no specific changes detected, build all services
                     if (changedServices.isEmpty()) {
@@ -76,17 +91,6 @@ pipeline {
                     steps {
                         script {
                             buildService('service-discovery', '8761')
-                        }
-                    }
-                }
-                
-                stage('Build Cloud Config') {
-                    when {
-                        expression { env.CHANGED_SERVICES.contains('cloud-config') }
-                    }
-                    steps {
-                        script {
-                            buildService('cloud-config', '9296')
                         }
                     }
                 }
@@ -387,12 +391,10 @@ def deployCoreServicesToEnvironment(environment, namespace) {
     
     // Deploy core services in order with waits
     deployService('zipkin', '9411', namespace)
-    sh "sleep 30" // Wait for zipkin to be ready
     
     // Define services locally
     def services = [
         [name: 'service-discovery', port: '8761'],
-        [name: 'cloud-config', port: '9296'],
         [name: 'api-gateway', port: '8080'],
     ]
     
@@ -420,9 +422,7 @@ def deployToEnvironment(environment, namespace) {
         [name: 'user-service', port: '8700'],
         [name: 'product-service', port: '8500'],
         [name: 'order-service', port: '8300'],
-        [name: 'payment-service', port: '8400'],
-        [name: 'shipping-service', port: '8600'],
-        [name: 'favourite-service', port: '8800']
+        [name: 'shipping-service', port: '8600']
     ]
     
     // Deploy changed services
@@ -444,6 +444,11 @@ def deployService(serviceName, servicePort, namespace) {
             -e "s|\\\${NAMESPACE}|${namespace}|g" \
             -e "s|\\\${IMAGE_TAG}|${IMAGE_TAG}|g" \
             k8s/base/${serviceName}.yaml | kubectl --kubeconfig="\$KCFG" apply -f -
+    """
+
+    // Wait for the service to be ready with kubectl wait
+    sh """
+        kubectl --kubeconfig="\$KCFG" wait --for=condition=available --timeout=600s deployment/${serviceName} -n ${namespace}
     """
 
     echo "Successfully deployed ${serviceName} to ${namespace}"

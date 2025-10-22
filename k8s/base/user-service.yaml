@@ -22,11 +22,6 @@ spec:
         image: ${REGISTRY}/user-service:${IMAGE_TAG}
         ports:
         - containerPort: 8700
-        env:
-          - name: SPRING_PROFILES_ACTIVE
-            value: "dev"
-          - name: EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE
-            value: "http://service-discovery.${NAMESPACE}.svc.cluster.local:8761/eureka/"
         envFrom:
           - configMapRef:
               name: micro-config
