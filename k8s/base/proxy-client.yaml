@@ -34,16 +34,16 @@ spec:
             cpu: "500m"
         readinessProbe:
           httpGet:
-            path: /proxy-client/actuator/health
-            port: 8700
+            path: /app/actuator/health
+            port: 8900
           initialDelaySeconds: 120
           periodSeconds: 15
           timeoutSeconds: 3
           failureThreshold: 6
         livenessProbe:
           httpGet:
-            path: /proxy-client/actuator/health
-            port: 8700
+            path: /app/actuator/health
+            port: 8900
           initialDelaySeconds: 150
           periodSeconds: 30
           timeoutSeconds: 3
@@ -60,7 +60,7 @@ spec:
   selector:
     app: proxy-client
   ports:
-  - port: 8700
-    targetPort: 8700
+  - port: 8900
+    targetPort: 8900
     protocol: TCP
   type: ClusterIP
