@@ -21,3 +21,4 @@ data:
   FAVOURITE_SERVICE_HOST: "http://favourite-service.${NAMESPACE}.svc.cluster.local:8800"
   SHIPPING_SERVICE_HOST: "http://shipping-service.${NAMESPACE}.svc.cluster.local:8600"
   PAYMENT_SERVICE_HOST: "http://payment-service.${NAMESPACE}.svc.cluster.local:8400"
+  SPRING_CONFIG_IMPORT: "optional:configserver:http://cloud-config.${NAMESPACE}.svc.cluster.local:9296/"
