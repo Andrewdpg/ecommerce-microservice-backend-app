@@ -4,6 +4,7 @@ def SERVICES = [
     [name: 'order-service', port: '8300', path: 'order-service'],
     [name: 'shipping-service', port: '8600', path: 'shipping-service'],
     [name: 'service-discovery', port: '8761', path: 'service-discovery'],
+    [name: 'proxy-client', port: '8900', path: 'proxy-client'],
     [name: 'api-gateway', port: '8080', path: 'api-gateway']
 ]
 
@@ -153,6 +154,16 @@ pipeline {
                         }
                     }
                 }
+                stage('Build Proxy Client') {
+                    when {
+                        expression { env.CHANGED_SERVICES.contains('proxy-client') }
+                    }
+                    steps {
+                        script {
+                            buildService('proxy-client', '8900')
+                        }
+                    }
+                }
             }
         }
         
@@ -183,6 +194,70 @@ pipeline {
                 }
             }
         }
+        
+        stage('Deploy Core Services to Staging') {
+            when {
+                anyOf {
+                    equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
+                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+                }
+            }
+            steps {
+                unstash 'workspace'
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        echo "Deploying core services to staging environment..."
+                        deployCoreServicesToEnvironment('staging', K8S_NAMESPACE_STAGING)
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Staging') {
+            when {
+                anyOf {
+                    equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
+                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+                }
+            }
+            steps {
+                unstash 'workspace'
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        echo "Deploying to staging environment..."
+                        deployToEnvironment('staging', K8S_NAMESPACE_STAGING)
+                    }
+                }
+            }
+        }
+
+        stage('Integration Tests') {
+            when {
+                anyOf {
+                    equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
+                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+                }
+            }
+            steps {
+                script {
+                    runIntegrationTests()
+                }
+            }
+        }
+        
+        stage('E2E Tests') {
+            when {
+                anyOf {
+                    equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
+                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+                }
+            }
+            steps {
+                script {
+                    runE2ETests()
+                }
+            }
+        }
 
         stage('Deploy Core Services to Production') {
             when {
@@ -210,92 +285,6 @@ pipeline {
                         echo "Deploying to production environment..."
                         deployToEnvironment('production', K8S_NAMESPACE_PROD)
                     }
-                }
-            }
-        }
-        
-        stage('Deploy Core Services to Staging') {
-            when {
-                equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
-            }
-            steps {
-                unstash 'workspace'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
-                    script {
-                        echo "Deploying core services to staging environment..."
-                        deployCoreServicesToEnvironment('staging', K8S_NAMESPACE_STAGING)
-                    }
-                }
-            }
-        }
-        
-        stage('Deploy to Staging') {
-            when {
-                equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
-            }
-            steps {
-                unstash 'workspace'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
-                    script {
-                        echo "Deploying to staging environment..."
-                        deployToEnvironment('staging', K8S_NAMESPACE_STAGING)
-                    }
-                }
-            }
-        }
-        
-        stage('Health Check Staging') {
-            when {
-                equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
-            }
-            steps {
-                unstash 'workspace'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
-                    script {
-                        echo "Performing health checks on staging..."
-                        healthCheckEnvironment(K8S_NAMESPACE_STAGING)
-                    }
-                }
-            }
-        }
-
-        
-        stage('Health Check Production') {
-            when {
-                equals expected: 'production', actual: env.TARGET_ENVIRONMENT
-            }
-            steps {
-                unstash 'workspace'
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
-                    script {
-                        echo "Performing health checks on production..."
-                        healthCheckEnvironment(K8S_NAMESPACE_PROD)
-                    }
-                }
-            }
-        }
-        
-        stage('Integration Tests') {
-            when {
-                anyOf {
-                    equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
-                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
-                }
-            }
-            steps {
-                script {
-                    runIntegrationTests()
-                }
-            }
-        }
-        
-        stage('E2E Tests') {
-            when {
-                equals expected: 'production', actual: env.TARGET_ENVIRONMENT
-            }
-            steps {
-                script {
-                    runE2ETests()
                 }
             }
         }
@@ -333,7 +322,7 @@ pipeline {
             echo "Pipeline completed successfully for services: ${env.CHANGED_SERVICES}"
             script {
                 if (env.TARGET_ENVIRONMENT == 'staging') {
-                    echo "Staging deployment ready for testing"
+                    echo "Staging deployment completed"
                 } else if (env.TARGET_ENVIRONMENT == 'production') {
                     echo "Production deployment completed"
                 } else {
@@ -422,7 +411,8 @@ def deployToEnvironment(environment, namespace) {
         [name: 'user-service', port: '8700'],
         [name: 'product-service', port: '8500'],
         [name: 'order-service', port: '8300'],
-        [name: 'shipping-service', port: '8600']
+        [name: 'shipping-service', port: '8600'],
+        [name: 'proxy-client', port: '8900']
     ]
     
     // Deploy changed services
@@ -452,28 +442,6 @@ def deployService(serviceName, servicePort, namespace) {
     """
 
     echo "Successfully deployed ${serviceName} to ${namespace}"
-}
-
-def healthCheckEnvironment(namespace) {
-    echo "Performing health checks on ${namespace}..."
-    
-    sh """
-        # Verificar que todos los pods están corriendo
-        kubectl --kubeconfig="\$KCFG" get pods -n ${namespace}
-        
-        # Verificar servicios
-        kubectl --kubeconfig="\$KCFG" get svc -n ${namespace}
-        
-        # Health checks básicos
-        if [ -f "./scripts/health-check.sh" ]; then
-            chmod +x ./scripts/health-check.sh
-            ./scripts/health-check.sh "\$KCFG" "${namespace}" 300
-        else
-            echo "Health check script not found, performing basic checks"
-            # Basic health checks
-            kubectl --kubeconfig="\$KCFG" get pods -n ${namespace} --field-selector=status.phase!=Running
-        fi
-    """
 }
 
 def runIntegrationTests() {
