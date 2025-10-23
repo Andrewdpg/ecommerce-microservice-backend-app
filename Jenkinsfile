@@ -708,7 +708,7 @@ class EcommerceUser(HttpUser):
         # Install Locust if not available
         echo "Locust no está instalado. Instalando..."
         apt-get update && apt-get install -y python3-pip
-        apt install python3.13-venv
+        apt-get install -y python3.13-venv
         python3 -m venv locust-env
         source locust-env/bin/activate
         pip install locust
