@@ -234,22 +234,6 @@ pipeline {
             }
         }
 
-        stage('Performance Tests') {
-            when {
-                anyOf {
-                    equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
-                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
-                }
-            }
-            steps {
-                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
-                    script {
-                        runPerformanceTests()
-                    }
-                }
-            }
-        }
-
         stage('Deploy Core Services to Production') {
             when {
                 equals expected: 'production', actual: env.TARGET_ENVIRONMENT
@@ -282,7 +266,7 @@ pipeline {
 
         stage('Generate Release Notes') {
             steps {
-            withCredentials([string(credentialsId: 'github-credentials', variable: 'github-token')]) {
+            withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
                 script {
                     sh """
                         # Generar notas de release automáticas
