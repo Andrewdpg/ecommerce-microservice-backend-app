@@ -411,8 +411,8 @@ def deployCoreServicesToEnvironment(environment, namespace) {
     def changedServices = env.CHANGED_SERVICES.split(',')
     for (serviceName in changedServices) {
         def service = services.find { it.name == serviceName }
-        def nodePort = environment.equals('staging') ? service.stagePort : service.prodPort
         if (service) {
+            def nodePort = environment.equals('staging') ? service.stagePort : service.prodPort
             deployService(serviceName, service.port, namespace, nodePort)
         }
     }
@@ -440,8 +440,8 @@ def deployToEnvironment(environment, namespace) {
     def changedServices = env.CHANGED_SERVICES.split(',')
     for (serviceName in changedServices) {
         def service = services.find { it.name == serviceName }
-        def nodePort = environment.equals('staging') ? service.stagePort : service.prodPort
         if (service) {
+            def nodePort = environment.equals('staging') ? service.stagePort : service.prodPort
             deployService(serviceName, service.port, namespace, nodePort)
         }
     }
