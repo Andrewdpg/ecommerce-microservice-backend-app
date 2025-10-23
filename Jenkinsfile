@@ -710,15 +710,10 @@ class EcommerceUser(HttpUser):
         apt-get update && apt-get install -y python3-pip
         apt-get install -y python3.13-venv
         python3 -m venv locust-env
-        source locust-env/bin/activate
-        pip install locust
-
         
-        # Run Locust tests
-        locust -f locustfile.py --host=http://${apiGatewayUrl} \\
-            --users=50 --spawn-rate=10 --run-time=300s \\
-            --html=performance_report.html --csv=performance_data \\
-            --headless
+        ./locust-env/bin/pip install locust
+        ./locust-env/bin/locust -f locustfile.py --host=http://ci-control-plane:30080 --users=50 --spawn-rate=10 --run-time=300s --html=performance_report.html --csv=performance_data --headless
+
         
         # Generate performance summary
         echo "Performance Test Summary:"
