@@ -281,8 +281,8 @@ pipeline {
         }
 
         stage('Generate Release Notes') {
-            withCredentials([string(credentialsId: 'github-credentials', variable: 'github-token')]) {
             steps {
+            withCredentials([string(credentialsId: 'github-credentials', variable: 'github-token')]) {
                 script {
                     sh """
                         # Generar notas de release automáticas
