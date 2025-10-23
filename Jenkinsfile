@@ -285,6 +285,9 @@ pipeline {
                 script {
                     sh """
                         # Generar notas de release automáticas
+                        git config --global user.name "Jenkins CI"
+                        git config --global user.email "jenkins@example.com"
+
                         git log --oneline --since="7 days ago" > CHANGELOG.md
                         echo "## Release ${RELEASE_VERSION}" > release_notes.md
                         echo "### Date: \$(date)" >> release_notes.md
