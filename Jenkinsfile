@@ -281,6 +281,7 @@ pipeline {
         }
 
         stage('Generate Release Notes') {
+            withCredentials([string(credentialsId: 'github-credentials', variable: 'github-token')]) {
             steps {
                 script {
                     sh """
@@ -296,9 +297,11 @@ pipeline {
                         
                         # Crear tag de release
                         git tag -a v${RELEASE_VERSION} -m "Release version ${RELEASE_VERSION}"
+                        git remote set-url origin https://${GITHUB_TOKEN}@github.com/Andrewdpg/ecommerce-microservice-backend-app.git
                         git push origin v${RELEASE_VERSION}
                     """
                 }
+            }
             }
             post {
                 always {
