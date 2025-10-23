@@ -706,13 +706,12 @@ class EcommerceUser(HttpUser):
     // Run Locust performance tests
     sh """
         # Install Locust if not available
-        if ! command -v locust &> /dev/null; then
-            echo "Locust no está instalado. Instalando..."
-            apt-get update && apt-get install -y python3-pip
-            pip3 install locust
-        else
-            echo "Locust ya está instalado"
-        fi
+        echo "Locust no está instalado. Instalando..."
+        apt-get update && apt-get install -y python3-pip
+        python3 -m venv locust-env
+        source locust-env/bin/activate
+        pip install locust
+
         
         # Run Locust tests
         locust -f locustfile.py --host=http://${apiGatewayUrl} \\
