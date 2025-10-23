@@ -488,7 +488,7 @@ def runIntegrationTests() {
         echo "Test 1: User Service Integration"
         USER_RESPONSE=\$(curl -s -X POST "http://${apiGatewayUrl}/user-service/api/users" \\
             -H "Content-Type: application/json" \\
-            -d '{ userId: 4, "firstName": "María", "lastName": "García", "imageUrl": "https://example.com/maria.jpg", "email": "maria.garcia@example.com", "phone": "+573007654321", "credential": {   "username": "maria.garcia",   "password": "SecurePass123!",   "roleBasedAuthority": "ROLE_USER",   "isEnabled": true,   "isAccountNonExpired": true,   "isAccountNonLocked": true,   "isCredentialsNonExpired": true }}')
+            -d '{ "userId": 4, "firstName": "María", "lastName": "García", "imageUrl": "https://example.com/maria.jpg", "email": "maria.garcia@example.com", "phone": "+573007654321", "credential": {   "username": "maria.garcia",   "password": "SecurePass123!",   "roleBasedAuthority": "ROLE_USER",   "isEnabled": true,   "isAccountNonExpired": true,   "isAccountNonLocked": true,   "isCredentialsNonExpired": true }}')
         echo "User created: \$USER_RESPONSE"
         
         USER_ID=\$(echo \$USER_RESPONSE | jq -r '.userId')
