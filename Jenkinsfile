@@ -161,13 +161,6 @@ pipeline {
                         '''
                         
                         // Push changed services
-                        def changedServices = env.CHANGED_SERVICES.split(',')
-                        for (serviceName in changedServices) {
-                            sh """
-                                docker push ${REGISTRY}/${serviceName}:${IMAGE_TAG}
-                                docker push ${REGISTRY}/${serviceName}:${LATEST_TAG}
-                            """
-                        }
                     }
                 }
             }
