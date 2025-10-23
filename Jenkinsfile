@@ -53,8 +53,30 @@ pipeline {
                     
                     // Detect changed services
                     def changedServices = []
-
-                    env.CHANGED_SERVICES = ''
+                    for (service in SERVICES) {
+                        def serviceName = service.name
+                        def servicePath = service.path
+                        
+                        // Check if service directory or related files changed
+                        def changes = sh(
+                            script: """git diff --name-only HEAD~1 HEAD | grep -E '^${servicePath}/|^pom\\.xml\$|^shared/' || true""",
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (changes) {
+                            changedServices.add(serviceName)
+                            echo "Changes detected in ${serviceName}: ${changes}"
+                        }
+                    }
+                    
+                    
+                    // If no specific changes detected, build all services
+                    if (changedServices.isEmpty()) {
+                        echo "No specific changes detected, building all services"
+                        changedServices = SERVICES.collect { it.name }
+                    }
+                    
+                    env.CHANGED_SERVICES = changedServices.join(',')
                     echo "Services to build: ${env.CHANGED_SERVICES}"
                 }
                 stash name: 'workspace', includes: '**/*'
@@ -161,6 +183,13 @@ pipeline {
                         '''
                         
                         // Push changed services
+                        def changedServices = env.CHANGED_SERVICES.split(',')
+                        for (serviceName in changedServices) {
+                            sh """
+                                docker push ${REGISTRY}/${serviceName}:${IMAGE_TAG}
+                                docker push ${REGISTRY}/${serviceName}:${LATEST_TAG}
+                            """
+                        }
                     }
                 }
             }
@@ -233,6 +262,22 @@ pipeline {
                 }
             }
         }
+        
+        stage('Performance Tests') {
+            when {
+                anyOf {
+                    equals expected: 'staging', actual: env.TARGET_ENVIRONMENT
+                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+                }
+            }
+            steps {
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        runPerformanceTests()
+                    }
+                }
+            }
+        }
 
         stage('Deploy Core Services to Production') {
             when {
@@ -265,6 +310,11 @@ pipeline {
         }
 
         stage('Generate Release Notes') {
+            when {
+                anyOf {
+                    equals expected: 'production', actual: env.TARGET_ENVIRONMENT
+                }
+            }
             steps {
             withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
                 script {
