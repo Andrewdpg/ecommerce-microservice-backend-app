@@ -654,7 +654,7 @@ class EcommerceUser(HttpUser):
     @task(2)
     def create_user(self):
         """Create a new user"""
-        user_data = { "userId": 4, "firstName": "María", "lastName": "García", "imageUrl": "https://example.com/maria.jpg", "email": "maria.garcia@example.com", "phone": "+573007654321", "credential": {   "username": "maria.garcia",   "password": "SecurePass123!",   "roleBasedAuthority": "ROLE_USER",   "isEnabled": true,   "isAccountNonExpired": true,   "isAccountNonLocked": true,   "isCredentialsNonExpired": true }}
+        user_data = { "userId": 4, "firstName": "María", "lastName": "García", "imageUrl": "https://example.com/maria.jpg", "email": "maria.garcia@example.com", "phone": "+573007654321", "credential": {   "username": "maria.garcia",   "password": "SecurePass123!",   "roleBasedAuthority": "ROLE_USER",   "isEnabled": True,   "isAccountNonExpired": True,   "isAccountNonLocked": True,   "isCredentialsNonExpired": True }}
         response = self.client.post("/user-service/api/users", json=user_data)
         if response.status_code == 200:
             self.user_id = response.json().get('userId')
