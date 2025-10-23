@@ -624,6 +624,8 @@ def runPerformanceTests() {
     
     // Get API Gateway URL for kind cluster
     def apiGatewayUrl = "ci-control-plane:30080"
+
+    
     
     // Create Locust test file
     writeFile file: 'locustfile.py', text: '''
@@ -704,7 +706,13 @@ class EcommerceUser(HttpUser):
     // Run Locust performance tests
     sh """
         # Install Locust if not available
-        pip install locust || echo "Locust already installed"
+        if ! command -v locust &> /dev/null; then
+            echo "Locust no está instalado. Instalando..."
+            apt-get update && apt-get install -y python3-pip
+            pip3 install locust
+        else
+            echo "Locust ya está instalado"
+        fi
         
         # Run Locust tests
         locust -f locustfile.py --host=http://${apiGatewayUrl} \\
