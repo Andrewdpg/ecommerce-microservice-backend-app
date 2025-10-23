@@ -239,8 +239,10 @@ pipeline {
                 }
             }
             steps {
-                script {
-                    runIntegrationTests()
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        runIntegrationTests()
+                    }
                 }
             }
         }
@@ -253,8 +255,10 @@ pipeline {
                 }
             }
             steps {
-                script {
-                    runE2ETests()
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        runE2ETests()
+                    }
                 }
             }
         }
@@ -267,8 +271,10 @@ pipeline {
                 }
             }
             steps {
-                script {
-                    runPerformanceTests()
+                withCredentials([file(credentialsId: "${KUBECONFIG_CREDENTIAL}", variable: 'KCFG')]) {
+                    script {
+                        runPerformanceTests()
+                    }
                 }
             }
         }
