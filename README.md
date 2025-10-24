@@ -24,7 +24,7 @@ Este documento presenta la implementación completa de un sistema de CI/CD para 
 
 ### Arquitectura General
 
-![1761268311529](https://github.com/Andrewdpg/ecommerce-microservice-backend-app/blob/master/image/REPORTE_TALLER2/1761268311529.png)
+![1761268311529](https://github.com/Andrewdpg/ecommerce-microservice-backend-app/blob/master/image/README/1761268311529.png)
 
 ---
 
