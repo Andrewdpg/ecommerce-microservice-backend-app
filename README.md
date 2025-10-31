@@ -388,7 +388,6 @@ def deployService(serviceName, servicePort, namespace, nodePort) {
 
 ![1761268972109](https://github.com/Andrewdpg/ecommerce-microservice-backend-app/blob/master/image/README/1761268972109.png)
 
-**[INSERTAR SCREENSHOT: Kubectl get services -n microservices-staging]**
 
 ### 3.4 Pipeline para Production Environment
 
@@ -440,12 +439,6 @@ stage('Generate Release Notes') {
 - ✅ Release notes generadas automáticamente
 - ✅ Git tag creado (v1.0.0)
 - ✅ Artifacts archivados en Jenkins
-
-**[INSERTAR SCREENSHOT: Pipeline Production completo]**
-
-**[INSERTAR SCREENSHOT: Kubectl get pods -n microservices-prod]**
-
-**[INSERTAR SCREENSHOT: GitHub release tags]**
 
 ---
 
